@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "description": "Master boot controller for the ROOT_SYSTEM",
   "scripts": {
-   "boot:mac": "node auto-ip.js && concurrently -c \"green,blue\" -n \"BACKEND,FRONTEND\" \"cd System-Backend && python main.py\" \"cd System-Frontend && npx expo start\"",
+    "boot:mac": "node auto-ip.js && concurrently -c \"green,blue\" -n \"BACKEND,FRONTEND\" \"cd System-Backend && python main.py\" \"cd System-Frontend && npx expo start\"",
     "boot:win": "node auto-ip.js && concurrently -c \"green,blue\" -n \"BACKEND,FRONTEND\" \"cd System-Backend && venv\\Scripts\\activate && python main.py\" \"cd System-Frontend && npx expo start\"",
-    "boot:simple": "node auto-ip.js && concurrently -c \"green,blue\" -n \"BACKEND,FRONTEND\" \"cd System-Backend && python main.py\" \"cd System-Frontend && npx expo start\""
+    "boot:simple": "node auto-ip.js && concurrently -c \"green,blue\" -n \"BACKEND,FRONTEND\" \"cd System-Backend && python main.py\" \"cd System-Frontend && npx expo start\"",
+    "dev": "cd System-Frontend && npm start"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

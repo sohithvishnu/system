@@ -63,6 +63,9 @@ pip-delete-this-directory.txt
 System-Backend/__pycache__/
 System-Backend/*.pyc
 System-Backend/.pytest_cache/
+System-Backend/config.py
+System-Backend/datetime_utils.py
+System-Backend/test_*.py
 
 # Frontend
 System-Frontend/node_modules/
@@ -82,3 +85,4 @@ System-Backend/config.py.bak
 *.tmp
 tmp/
 .cache/
+

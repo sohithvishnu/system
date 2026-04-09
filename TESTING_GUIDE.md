@@ -306,6 +306,245 @@ npx expo start -c
 
 ---
 
+## 🤖 ROOT_SYSTEM Agent & Daily Logs Testing
+
+### **Setup: Start Fresh**
+
+Before testing, prepare your app state:
+
+```bash
+# Terminal: Backend
+cd System-Backend
+python main.py
+
+# Terminal: Frontend  
+cd System-Frontend
+npx expo start -c  # Clear cache
+
+# Terminal: Ollama (if not running)
+ollama serve
+```
+
+### **Test 1: Daily Log Auto-Creation on App Launch**
+
+**Precondition:**
+- User logged in
+- No active sessions (or first time opening app for today)
+
+**Steps:**
+1. Kill app completely (swipe up on iOS, back button multiple times on Android)
+2. Wait 3 seconds
+3. Reopen app and navigate to Chat tab
+4. **Expected Results:**
+   - ✅ Thread selector displays: `[ * ] DAILY_LOG_2026-04-09` (today's date)
+   - ✅ Active thread chip is highlighted in green (#00FF66)
+   - ✅ Header displays: `ROOT_SYSTEM // [your_username] → // DAILY_LOG_2026-04-09`
+   - ✅ Message history is empty (first time today)
+   - ✅ Input field ready for typing
+
+**Validation:**
+```bash
+# Backend: Check database
+sqlite3 System-Backend/memory_db/chroma.sqlite3
+SELECT DISTINCT session_id FROM chat_history WHERE user_id = 'testuser_prod' ORDER BY session_id;
+# Output should include: DAILY_LOG_2026-04-09
+```
+
+**Failure Scenarios:**
+- ❌ Thread selector empty: Daily log injection failed
+- ❌ Yesterday's log active instead of today's: Default session logic broken
+- ❌ Header shows UUID instead of date: Session name not loading
+
+---
+
+### **Test 2: ROOT_SYSTEM Persona in LLM Responses**
+
+**Precondition:**
+- Daily log open and active
+- AI model selected in Settings (e.g., "mistral")
+- Ollama running with at least one model
+
+**Steps:**
+1. In chat, type: `"What's your name?"` and send
+2. Wait for AI response
+3. **Expected Behavior:**
+   - ✅ Response starts without pleasantries ("Hi there!", "Happy to help", etc.)
+   - ✅ Response identifies as ROOT_SYSTEM or indicates OS-level role
+   - ✅ Tone is analytical, concise, slightly technical
+   - ✅ No emoji usage
+   - ✅ Response appears in gray bubble on right
+
+**Example Expected Response:**
+```
+ROOT_SYSTEM. I manage your life hub, Kanban tasks, and daily logs.
+What can I help you accomplish today?
+```
+
+**Example Unexpected Response (FAIL):**
+```
+Hi there! I'm happy to help! 😊 I'm an AI assistant...
+```
+
+**Cause of Failure:**
+- Persona injection not working in backend prompt
+- Check main.py lines 416-442: ROOT_SYSTEM prepended to prompt?
+
+---
+
+### **Test 3: Custom Thread Creation with Alert Prompt**
+
+**Precondition:**
+- Daily log open
+- Chat tab focused
+
+**Steps:**
+1. Tap `[ + NEW_THREAD ]` button in thread selector
+2. **Expected:** iOS/Android native Alert appears with:
+   - Title: "New thread"
+   - Input field asking for name
+3. Type thread name: `"My Research Project"`
+4. Tap create/confirm
+5. **Expected Results:**
+   - ✅ Alert closes
+   - ✅ New thread appears in selector immediately: `MY_RESEARCH_PROJECT` (uppercase + underscores)
+   - ✅ New thread is now active (green highlight)
+   - ✅ Header updates: `ROOT_SYSTEM // [user] → // MY_RESEARCH_PROJECT`
+   - ✅ Chat history is empty (new thread)
+   - ✅ Selector still shows daily log with `[ * ]` prefix and red border
+
+6. Send message: `"Start analyzing"`
+7. **Expected:**
+   - ✅ Message appears in bubble
+   - ✅ AI responds in ROOT_SYSTEM voice
+   - ✅ Message saved to MY_RESEARCH_PROJECT session
+
+**Validation:**
+```bash
+# Backend: Check thread exists
+curl "http://localhost:8000/api/chat/sessions?user_id=testuser_prod" 2>/dev/null | jq '.sessions[] | .id'
+# Output should include: MY_RESEARCH_PROJECT
+```
+
+**Failure Scenarios:**
+- ❌ Thread doesn't appear in selector after creation: State update timing issue
+- ❌ Thread disappears after sending message: AsyncStorage not persisting
+- ❌ Name not formatted (lowercase instead of uppercase): String formatting bug
+- ❌ Alert doesn't appear: Native module integration broken
+
+---
+
+### **Test 4: Session Isolation (Memory Per Thread)**
+
+**Precondition:**
+- Multiple threads with messages:
+  - DAILY_LOG_2026-04-09: "What's my project deadline?"
+  - PROJECT_RESEARCH: "Define quantum computing"
+  - MY_ANALYSIS: "Summarize yesterday's findings"
+
+**Steps:**
+1. Active in DAILY_LOG_2026-04-09
+2. Type: `"What did I ask about yesterday's project?"`
+3. **Expected:** ROOT_SYSTEM refers only to today's log context, doesn't know about PROJECT_RESEARCH
+4. Switch to PROJECT_RESEARCH thread (tap chip)
+5. **Expected:**
+   - ✅ Header updates to PROJECT_RESEARCH
+   - ✅ Chat history shows only PROJECT_RESEARCH messages
+   - ✅ Previous thread's messages gone from view
+6. Type: `"What did I ask about yesterday's project?"`
+7. **Expected:** ROOT_SYSTEM refers only to PROJECT_RESEARCH context
+
+**Validation:**
+- ✅ Each thread has isolated prompt history
+- ✅ ChromaDB queries filter by session_id
+- ✅ No cross-contamination between threads
+
+---
+
+### **Test 5: Thread Selector Visual Distinction**
+
+**Precondition:**
+- Multiple threads active (daily log + custom threads)
+
+**Visual Checklist:**
+- ✅ Daily log threads have `[ * ]` prefix: `[ * ] DAILY_LOG_2026-04-09`
+- ✅ Daily log border is RED (#FF2C55), 1px
+- ✅ Custom threads have no prefix: `MY_RESEARCH_PROJECT`
+- ✅ Custom thread borders are GRAY (#666666), 1px
+- ✅ Active thread (any type) has GREEN background (#00FF66) + 2px border
+- ✅ Active thread text is WHITE and BOLD
+- ✅ Inactive threads have dark background
+- ✅ Thread chips scroll horizontally on mobile
+- ✅ `[ + NEW_THREAD ]` button visible at start
+
+---
+
+### **Test 6: Daily Log Persistence Across Days**
+
+**Precondition:**
+- Today's daily log open with messages
+
+**Manual Test:**
+1. Note today's date: `[ * ] DAILY_LOG_2026-04-09`
+2. Manually set device date forward 1 day
+3. Kill and restart app
+4. Navigate to Chat tab
+5. **Expected:**
+   - ✅ New thread appears: `[ * ] DAILY_LOG_2026-04-10` (tomorrow's date)
+   - ✅ New thread is active and highlighted
+   - ✅ Yesterday's log still exists in selector
+   - ✅ Chat history is empty (new day)
+
+6. Tap yesterday's thread: `[ * ] DAILY_LOG_2026-04-09`
+7. **Expected:**
+   - ✅ Chat history loads with previous messages
+   - ✅ Header shows correct date for selected thread
+
+**Automated Test (Backend):**
+```bash
+# Query daily logs by session_id pattern
+curl "http://localhost:8000/api/chat/sessions?user_id=testuser_prod" 2>/dev/null | \
+  jq '.sessions[] | select(.id | startswith("DAILY_LOG")) | .id'
+```
+
+---
+
+### **Test 7: Thread Switching Performance**
+
+**Precondition:**
+- 5+ threads with 10+ messages each
+- All threads loaded in selector
+
+**Steps:**
+1. Active in thread A
+2. Tap thread B (watch for delay)
+3. **Expected:**
+   - ✅ Thread switches within 500ms
+   - ✅ History loads without flickering
+   - ✅ Header updates immediately
+4. Rapid tap between threads C, D, E
+5. **Expected:**
+   - ✅ No undefined state or errors
+   - ✅ Correct history shows for each thread
+   - ✅ No duplicate messages
+
+---
+
+### **Test 8: Android vs iOS Differences**
+
+**iOS Specific:**
+- ✅ Alert.prompt modal appears with standard iOS styling
+- ✅ Keyboard dismisses cleanly after input
+- ✅ Thread chips have proper tap targets (44pt min)
+- ✅ Scroll feel is smooth (momentum)
+
+**Android Specific:**
+- ✅ Alert.prompt shows Material Design-style
+- ✅ Thread selector scrolls smoothly
+- ✅ No over-scroll bouncing
+- ✅ Back button doesn't break navigation
+
+---
+
 ## 📋 Quick API Test (curl)
 
 ```bash
@@ -323,6 +562,22 @@ curl -X POST http://localhost:8000/api/auth/login \
 curl -X POST http://localhost:8000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"curl_test_123","password":"wrongpass"}' | jq .
+
+# Test ROOT_SYSTEM + Daily Logs
+curl -X POST http://localhost:8000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "curl_test_123",
+    "session_id": "DAILY_LOG_2026-04-09",
+    "message": "What'"'"'s your name?",
+    "model": "mistral"
+  }' | jq .
+
+# Fetch sessions
+curl "http://localhost:8000/api/chat/sessions?user_id=curl_test_123" 2>/dev/null | jq .
+
+# Fetch history for specific session
+curl "http://localhost:8000/api/chat/history?user_id=curl_test_123&session_id=DAILY_LOG_2026-04-09" 2>/dev/null | jq .
 ```
 
 ---
