@@ -21,6 +21,8 @@ export default function SideNavigationLayout() {
     { name: 'board', icon: 'grid-outline', label: 'BOARD' },
     { name: 'calendar', icon: 'flash-outline', label: 'AGENDA' },
     { name: 'profile', icon: 'id-card-outline', label: 'USER' },
+    { name: 'memory', icon: 'brain-outline', label: 'MEMORY' },
+    { name: 'journal', icon: 'book-outline', label: 'EOD_LOGS' },
     { name: 'settings', icon: 'hardware-chip-outline', label: 'CONFIG' },
   ];
 

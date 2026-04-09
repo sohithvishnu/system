@@ -1,0 +1,84 @@
+# Dependencies
+node_modules/
+yarn.lock
+package-lock.json
+
+# System
+.DS_Store
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+Thumbs.db
+.AppleDouble
+.LSOverride
+
+# Project specific
+*.db
+*.sqlite3
+memory_db/
+workspace.db
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build outputs
+dist/
+build/
+*.expo/
+.expo/
+.next/
+out/
+
+# Python
+venv/
+env/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Backend
+System-Backend/__pycache__/
+System-Backend/*.pyc
+System-Backend/.pytest_cache/
+
+# Frontend
+System-Frontend/node_modules/
+System-Frontend/.expo/
+System-Frontend/dist/
+System-Frontend/.next/
+System-Frontend/build/
+System-Frontend/ios/Pods/
+System-Frontend/android/.gradle/
+System-Frontend/android/build/
+
+# Auto-generated files
+System-Frontend/constants/env.ts
+System-Backend/config.py.bak
+
+# Temp files
+*.tmp
+tmp/
+.cache/

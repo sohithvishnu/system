@@ -1,3 +1,10 @@
+// PRODUCTION: Silence all console output in compiled builds for performance
+if (!__DEV__) {
+  console.log = () => {};
+  console.warn = () => {};
+  console.error = () => {};
+}
+
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { useEffect } from 'react';

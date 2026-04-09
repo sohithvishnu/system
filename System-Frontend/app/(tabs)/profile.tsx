@@ -47,11 +47,13 @@ export default function ProfileScreen() {
         setUserStats(data.stats);
       } else {
         console.error("Stats load failed:", data.error);
+        Alert.alert('SYSTEM_ERR', 'Failed to load user statistics.');
       }
     } catch (e: any) {
       // Ignore abort errors, they're expected when navigation happens
       if (e.name !== 'AbortError') {
         console.error("Stats fetch failed:", e.message);
+        Alert.alert('SYSTEM_ERR', 'Backend connection severed.');
       }
     }
   }, [user?.id]);
@@ -115,7 +117,8 @@ export default function ProfileScreen() {
       }
     } catch (e: any) {
       console.error("Password change failed", e);
-      setPasswordError('Network error. Please try again.');
+      setPasswordError('SYSTEM_ERR: Backend connection severed. Could not change password.');
+      Alert.alert('SYSTEM_ERR', 'Backend connection failed.');
     } finally {
       setLoading(false);
     }
@@ -231,7 +234,7 @@ export default function ProfileScreen() {
       {/* CHANGE PASSWORD MODAL */}
       <Modal visible={showChangePassword} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <ScrollView style={styles.modalContent} scrollEnabled showsVerticalScrollIndicator={false}>
             <Text style={styles.modalTitle}>CHANGE / PASSWORD</Text>
             
             {/* Old Password Input */}
@@ -317,7 +320,7 @@ export default function ProfileScreen() {
                 <Text style={styles.confirmBtnText}>CONFIRM</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
 
@@ -357,49 +360,49 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   header: { padding: 24, borderBottomWidth: 2, borderColor: '#1a1a1a' },
-  headerTitle: { color: '#FFF', fontWeight: '900', fontSize: 28, letterSpacing: 1 },
+  headerTitle: { color: '#FFF', fontWeight: '900', fontSize: 28, letterSpacing: 1, fontFamily: 'Courier New' },
   headerSubtitle: { color: '#00FF66', fontWeight: '900', fontSize: 12, marginTop: 4, letterSpacing: 2 },
   content: { flex: 1 },
   section: { padding: 24, borderBottomWidth: 1, borderColor: '#1a1a1a' },
-  sectionTitle: { color: '#00FF66', fontWeight: '900', fontSize: 13, letterSpacing: 2, marginBottom: 16 },
+  sectionTitle: { color: '#00FF66', fontWeight: '900', fontSize: 13, letterSpacing: 2, marginBottom: 16, fontFamily: 'Courier New' },
   
   // INFO CARD
-  infoCard: { backgroundColor: '#0A0A0A', borderWidth: 2, borderColor: '#1a1a1a', borderRadius: 8, padding: 16 },
+  infoCard: { backgroundColor: '#0A0A0A', borderWidth: 2, borderColor: '#1a1a1a', borderRadius: 0, padding: 16 },
   infoRow: { marginBottom: 16 },
-  infoLabel: { color: '#666', fontWeight: '900', fontSize: 10, letterSpacing: 1, marginBottom: 8 },
+  infoLabel: { color: '#666', fontWeight: '900', fontSize: 10, letterSpacing: 1, marginBottom: 8, fontFamily: 'Courier New' },
   infoValue: { color: '#FFF', fontWeight: '900', fontSize: 14, letterSpacing: 0.5 },
 
   // STATS
   statsContainer: { flexDirection: 'row', gap: 12 },
-  statCard: { flex: 1, backgroundColor: '#0A0A0A', borderWidth: 2, borderColor: '#00FF66', borderRadius: 8, padding: 16, alignItems: 'center' },
+  statCard: { flex: 1, backgroundColor: '#0A0A0A', borderWidth: 2, borderColor: '#00FF66', borderRadius: 0, padding: 16, alignItems: 'center' },
   statValue: { color: '#00FF66', fontWeight: '900', fontSize: 28, marginBottom: 8 },
   statLabel: { color: '#666', fontWeight: '900', fontSize: 10, letterSpacing: 1 },
 
   // SETTINGS BUTTON
-  settingBtn: { backgroundColor: '#0A0A0A', borderWidth: 2, borderColor: '#1a1a1a', borderRadius: 8, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 16 },
+  settingBtn: { backgroundColor: '#0A0A0A', borderWidth: 2, borderColor: '#1a1a1a', borderRadius: 0, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 16 },
   settingBtnText: { flex: 1, color: '#FFF', fontWeight: '900', fontSize: 14 },
 
   // LOGOUT BUTTON
-  logoutBtn: { backgroundColor: '#0A0A0A', borderWidth: 2, borderColor: '#FF2C55', borderRadius: 8, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 16 },
+  logoutBtn: { backgroundColor: '#0A0A0A', borderWidth: 2, borderColor: '#FF2C55', borderRadius: 0, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 16 },
   logoutBtnText: { flex: 1, color: '#FF2C55', fontWeight: '900', fontSize: 14 },
 
   // MODAL
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { width: '88%', backgroundColor: '#0A0A0A', padding: 24, borderRadius: 8, borderWidth: 2, borderColor: '#1a1a1a' },
+  modalContent: { width: '88%', backgroundColor: '#0A0A0A', padding: 32, borderRadius: 0, borderWidth: 2, borderColor: '#1a1a1a' },
   modalTitle: { color: '#00FF66', fontWeight: '900', fontSize: 22, marginBottom: 20, letterSpacing: 1 },
   
   // PASSWORD INPUTS
   passwordInputWrapper: { position: 'relative', marginBottom: 16 },
-  modalInput: { backgroundColor: '#000', color: '#FFF', borderRadius: 8, padding: 16, paddingRight: 48, marginBottom: 0, borderWidth: 2, borderColor: '#1a1a1a', fontWeight: '700' },
+  modalInput: { backgroundColor: '#000', color: '#FFF', borderRadius: 0, padding: 20, paddingRight: 52, marginBottom: 0, borderWidth: 2, borderColor: '#1a1a1a', fontWeight: '700', fontFamily: 'Courier New' },
   eyeIcon: { position: 'absolute', right: 12, top: '50%', transform: [{ translateY: -10 }] },
   
   // ERROR TEXT
   errorText: { color: '#FF2C55', fontWeight: '900', fontSize: 12, marginBottom: 16, paddingHorizontal: 4 },
 
   // MODAL ACTIONS
-  modalActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, gap: 12 },
-  cancelText: { color: '#666', fontWeight: '900', fontSize: 13, paddingVertical: 12, paddingHorizontal: 20 },
-  confirmBtn: { flex: 1, backgroundColor: '#00FF66', borderRadius: 8, paddingVertical: 16, alignItems: 'center' },
+  modalActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, gap: 16 },
+  cancelText: { color: '#666', fontWeight: '900', fontSize: 13, paddingVertical: 16, paddingHorizontal: 24 },
+  confirmBtn: { flex: 1, backgroundColor: '#00FF66', borderRadius: 0, paddingVertical: 20, alignItems: 'center' },
   confirmBtnText: { color: '#000', fontWeight: '900', fontSize: 13, letterSpacing: 1 },
 
   // LOGOUT MODAL (BRANDED)
@@ -416,7 +419,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0A0A0A', 
     borderWidth: 2,
     borderColor: '#FF2C55',
-    borderRadius: 8,
+    borderRadius: 0,
     padding: 32,
     alignItems: 'center'
   },
@@ -450,7 +453,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     borderWidth: 2,
     borderColor: '#1a1a1a',
-    borderRadius: 8,
+    borderRadius: 0,
     paddingVertical: 16,
     alignItems: 'center'
   },
@@ -465,7 +468,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF2C55',
     borderWidth: 2,
     borderColor: '#FF2C55',
-    borderRadius: 8,
+    borderRadius: 0,
     paddingVertical: 16,
     alignItems: 'center'
   },

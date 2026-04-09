@@ -5,6 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { COLORS, BOLD_STYLES } from '../../constants/theme';
 import { BACKEND_URL } from '../../constants/config';
+import { formatDateTime, getDateTimeHint } from '../../utils/dateTimeFormatter';
 
 type Ticket = { id: string; title: string; dueDate: string; priority: string; status: string };
 
@@ -20,6 +21,7 @@ export default function BoardScreen() {
   const [editTitle, setEditTitle] = useState('');
   const [editPriority, setEditPriority] = useState('');
   const [editDueDate, setEditDueDate] = useState('');
+  const [dateTimeError, setDateTimeError] = useState('');
   
   // Responsive logic
   const isMobile = screenWidth < 768;
@@ -97,12 +99,19 @@ export default function BoardScreen() {
       }
     } catch (e: any) {
       console.error("Failed to update status", e);
-      Alert.alert('Network Error', 'Could not update ticket. Please try again.');
+      Alert.alert('SYSTEM_ERR', 'Backend connection severed. Ticket status update failed.');
     }
   };
 
   const saveEditedTicket = async () => {
     if (!editingTicket) return;
+    
+    // Validate and format date/time
+    const formatted = formatDateTime(editDueDate, true);
+    if (!formatted) {
+      setDateTimeError('Invalid date/time. Use: DD/MM/YYYY HH:MM or DD/MM/YYYY');
+      return;
+    }
     
     try {
       const res = await fetch(`${BACKEND_URL}/api/tickets/${editingTicket.id}`, {
@@ -110,25 +119,64 @@ export default function BoardScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: editTitle,
-          priority: editPriority,
-          dueDate: editDueDate,
+          priority: editPriority.toUpperCase(),
+          dueDate: formatted,
           user_id: user?.id
         }),
       });
       const data = await res.json();
       if (data.success) {
-        setEditingTicket(null);
-        setEditTitle('');
-        setEditPriority('');
-        setEditDueDate('');
+        closeEditModal();
         fetchTickets();
       } else {
         Alert.alert('Error', data.error || 'Failed to save ticket');
       }
     } catch (e: any) {
       console.error("Failed to save ticket", e);
-      Alert.alert('Network Error', 'Could not save ticket. Please try again.');
+      Alert.alert('SYSTEM_ERR', 'Backend connection severed. Ticket save failed.');
     }
+  };
+
+  const deleteTicket = async () => {
+    if (!editingTicket) return;
+    
+    Alert.alert(
+      '[ DELETE_ENTITY ]',
+      'Remove this ticket permanently?',
+      [
+        {
+          text: 'CANCEL',
+          onPress: () => {},
+          style: 'cancel'
+        },
+        {
+          text: 'DELETE',
+          onPress: async () => {
+            try {
+              const res = await fetch(`${BACKEND_URL}/api/tickets/${editingTicket.id}?user_id=${user?.id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+              });
+              const data = await res.json();
+              if (data.success) {
+                setEditingTicket(null);
+                setEditTitle('');
+                setEditPriority('');
+                setEditDueDate('');
+                fetchTickets();
+                Alert.alert('Success', 'Ticket deleted');
+              } else {
+                Alert.alert('Error', data.error || 'Failed to delete ticket');
+              }
+            } catch (e: any) {
+              console.error("Failed to delete ticket", e);
+              Alert.alert('SYSTEM_ERR', 'Backend connection severed. Ticket deletion failed.');
+            }
+          },
+          style: 'destructive'
+        }
+      ]
+    );
   };
 
   const openEditModal = (ticket: Ticket) => {
@@ -136,6 +184,7 @@ export default function BoardScreen() {
     setEditTitle(ticket.title);
     setEditPriority(ticket.priority);
     setEditDueDate(ticket.dueDate);
+    setDateTimeError('');
   };
 
   const closeEditModal = () => {
@@ -143,6 +192,7 @@ export default function BoardScreen() {
     setEditTitle('');
     setEditPriority('');
     setEditDueDate('');
+    setDateTimeError('');
   };
 
   const getNextStatus = (currentStatus: string) => {
@@ -241,12 +291,6 @@ export default function BoardScreen() {
               </View>
             </TouchableOpacity>
           ))}
-          
-          {/* Add Ticket Button */}
-          <TouchableOpacity style={styles.addTicketBtn}>
-            <Ionicons name="add" size={18} color="#00FF66" />
-            <Text style={styles.addTicketText}>ADD TICKET</Text>
-          </TouchableOpacity>
         </ScrollView>
       </View>
     );
@@ -295,8 +339,17 @@ export default function BoardScreen() {
       {/* EDIT TICKET MODAL */}
       <Modal visible={editingTicket !== null} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={100} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <View style={styles.modalContent}>
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+            style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+          >
+            <ScrollView 
+              style={styles.modalContent} 
+              contentContainerStyle={{ paddingVertical: 20, paddingHorizontal: 20 }}
+              scrollEnabled 
+              showsVerticalScrollIndicator={false}
+            >
               <Text style={styles.modalTitle}>[ EDIT_SYSTEM_TASK ]</Text>
               
               {/* Title Input */}
@@ -306,6 +359,7 @@ export default function BoardScreen() {
                 placeholderTextColor="#555"
                 value={editTitle}
                 onChangeText={setEditTitle}
+                selectionColor="#00FF66"
               />
               
               {/* Priority Selector */}
@@ -330,25 +384,44 @@ export default function BoardScreen() {
                 ))}
               </View>
               
-              {/* Due Date Input */}
+              {/* Date & Time Text Input */}
+              <Text style={styles.inputLabel}>DUE_DATE_TIME</Text>
               <TextInput
-                style={styles.modalInput}
-                placeholder="DUE_DATE (YYYY-MM-DD)"
+                style={[styles.modalInput, dateTimeError && styles.errorInput]}
+                placeholder="DD/MM/YYYY HH:MM or DD/MM/YYYY"
                 placeholderTextColor="#555"
                 value={editDueDate}
-                onChangeText={setEditDueDate}
+                onChangeText={(text) => {
+                  setEditDueDate(text);
+                  setDateTimeError('');
+                }}
+                selectionColor="#00FF66"
               />
+              {dateTimeError ? (
+                <Text style={styles.errorText}>{dateTimeError}</Text>
+              ) : (
+                <Text style={styles.hintText}>Formats: DD/MM/YYYY HH:MM, 09/04/2026 14:30, 09APR2026 2:30 PM</Text>
+              )}
               
               {/* Modal Actions */}
               <View style={styles.modalActions}>
-                <TouchableOpacity onPress={closeEditModal}>
-                  <Text style={styles.cancelText}>[ CANCEL ]</Text>
+                <TouchableOpacity style={styles.cancelBtn} onPress={closeEditModal}>
+                  <Text style={styles.cancelText} numberOfLines={1} adjustsFontSizeToFit>
+                    [ CANCEL ]
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.deleteBtn} onPress={deleteTicket}>
+                  <Text style={styles.deleteBtnText} numberOfLines={1} adjustsFontSizeToFit>
+                    [ DELETE_ENTITY ]
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.saveBtn} onPress={saveEditedTicket}>
-                  <Text style={styles.saveBtnText}>[ SAVE_MUTATION ]</Text>
+                  <Text style={styles.saveBtnText} numberOfLines={1} adjustsFontSizeToFit>
+                    [ SAVE_MUTATION ]
+                  </Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </ScrollView>
           </KeyboardAvoidingView>
         </View>
       </Modal>
@@ -370,7 +443,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 12, fontWeight: '900', color: '#FFFFFF', letterSpacing: 2 },
   headerHighlight: { fontSize: 28, fontWeight: '900', color: '#00FF66', letterSpacing: -1, marginTop: 4 },
-  refreshBtn: { padding: 8, borderWidth: 2, borderColor: '#1a1a1a', borderRadius: 8 },
+  refreshBtn: { padding: 8, borderWidth: 2, borderColor: '#1a1a1a', borderRadius: 0 },
   
   boardScroll: { flex: 1 },
   
@@ -398,7 +471,7 @@ const styles = StyleSheet.create({
     borderColor: '#00FF66',
     paddingHorizontal: 8, 
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 0,
   },
   countBadgeText: { 
     color: '#00FF66', 
@@ -415,7 +488,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0A0A0A',
     borderWidth: 2,
     borderColor: '#1a1a1a',
-    borderRadius: 12,
+    borderRadius: 0,
     padding: 16,
     marginBottom: 12,
   },
@@ -433,7 +506,7 @@ const styles = StyleSheet.create({
   },
   priorityPill: {
     borderWidth: 1,
-    borderRadius: 6,
+    borderRadius: 0,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
@@ -450,26 +523,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   
-  /* Add Ticket Button */
-  addTicketBtn: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  addTicketText: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 12,
-    letterSpacing: 1,
-  },
-
   /* Movement Actions */
   actionRow: {
     flexDirection: 'row',
@@ -481,7 +534,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: '#1a1a1a',
-    borderRadius: 6,
+    borderRadius: 0,
     paddingVertical: 8,
     paddingHorizontal: 12,
     justifyContent: 'center',
@@ -497,48 +550,71 @@ const styles = StyleSheet.create({
   /* Modal Styles */
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.95)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
   },
   modalContent: {
     width: '100%',
-    maxWidth: 380,
+    maxWidth: 420,
     backgroundColor: '#0A0A0A',
     borderWidth: 2,
     borderColor: '#1a1a1a',
-    borderRadius: 8,
+    borderRadius: 0,
     padding: 24,
+    maxHeight: '85%',
   },
   modalTitle: {
     color: '#00FF66',
     fontWeight: '900',
-    fontSize: 18,
+    fontSize: 16,
     letterSpacing: 2,
-    marginBottom: 20,
+    marginBottom: 16,
+    fontFamily: 'Courier New',
   },
   modalInput: {
     backgroundColor: '#000',
     color: '#FFF',
-    borderRadius: 6,
-    borderWidth: 1,
+    borderRadius: 0,
+    borderWidth: 2,
     borderColor: '#1a1a1a',
-    padding: 12,
-    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 14,
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 13,
+    fontFamily: 'Courier New',
   },
   inputLabel: {
     color: '#00FF66',
     fontWeight: '900',
-    fontSize: 11,
+    fontSize: 10,
     letterSpacing: 1,
-    marginBottom: 8,
+    marginBottom: 6,
+    fontFamily: 'Courier New',
+  },
+  datePickerBtn: {
+    backgroundColor: '#000',
+    borderWidth: 2,
+    borderColor: '#1a1a1a',
+    borderRadius: 0,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  datePickerText: {
+    color: '#FFF',
+    fontFamily: 'Courier New',
+    fontWeight: '600',
+    fontSize: 14,
+    flex: 1,
   },
   prioritySelector: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
     marginBottom: 16,
   },
   prioritySelectBtn: {
@@ -546,8 +622,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: '#1a1a1a',
-    borderRadius: 6,
-    paddingVertical: 10,
+    borderRadius: 0,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -564,32 +641,79 @@ const styles = StyleSheet.create({
   prioritySelectTextActive: {
     color: '#000',
   },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginTop: 20,
-  },
   cancelText: {
-    color: '#666',
+    color: '#666666',
     fontWeight: '900',
     fontSize: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
     letterSpacing: 1,
   },
+  modalActions: {
+    flexDirection: 'column',
+    width: '100%',
+    gap: 12,
+    marginTop: 24,
+  },
+  cancelBtn: {
+    width: '100%',
+    backgroundColor: '#000000',
+    borderRadius: 0,
+    borderWidth: 2,
+    borderColor: '#1a1a1a',
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   saveBtn: {
-    flex: 1,
+    width: '100%',
     backgroundColor: '#00FF66',
-    borderRadius: 6,
-    paddingVertical: 12,
+    borderRadius: 0,
+    borderWidth: 0,
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   saveBtnText: {
-    color: '#000',
+    color: '#000000',
     fontWeight: '900',
     fontSize: 12,
     letterSpacing: 1,
+  },
+  deleteBtn: {
+    width: '100%',
+    backgroundColor: '#000000',
+    borderRadius: 0,
+    borderWidth: 2,
+    borderColor: '#FF2C55',
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteBtnText: {
+    color: '#FF2C55',
+    fontWeight: '900',
+    fontSize: 12,
+    letterSpacing: 1,
+  },
+  
+  errorInput: {
+    borderColor: '#FF2C55',
+  },
+  errorText: {
+    color: '#FF2C55',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    marginTop: 6,
+    marginBottom: 12,
+    fontFamily: 'Courier New',
+  },
+  hintText: {
+    color: '#666',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginTop: 6,
+    marginBottom: 12,
+    fontFamily: 'Courier New',
   },
 });

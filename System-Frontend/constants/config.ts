@@ -1,5 +1,9 @@
 /**
  * AUTO-GENERATED SYSTEM FILE
- * Do not edit manually. This is rewritten on every system boot.
+ * Imports centralized network configuration from env.ts
+ * Network routing configured for Tailscale secure tunnel
  */
-export const BACKEND_URL = 'http://192.168.50.2:8000';
+import { API_BASE_URL } from './env';
+
+export const BACKEND_URL = API_BASE_URL;
+
