@@ -13,15 +13,22 @@ A modern, responsive task management application with AI-powered chat assistant,
 - **Peek-and-Snap Mobile View:** 75% column width with adjacent column peeking (signaling scrollability)
 - **Desktop Grid Layout:** All 3 columns visible side-by-side
 - **Brutalist Card Design:** Priority pills, due dates in monospace
-- **Smart Status Management:** Drag tickets between columns
+- **Full Ticket CRUD:** Create, read, update, delete with inline edit modal
+- **Status Movement:** One-tap buttons to move tickets between columns (↑ up, → right, ← left)
+- **Edit Modal:** Modify title, priority, and due date in a modal overlay
 - **Ticket Counts:** Real-time count badges per column
+- **Pull-to-Refresh:** Drag down to reload tickets from backend
+- **Empty States:** Brutalist `[ NO_TASKS_FOUND ]` display when columns are empty
 - **Responsive Snap Scrolling:** Fast decel on mobile, normal on desktop
 
 ### 💬 AI Chat Interface
 - **Chat History:** Load and display previous conversations
-- **AI Responses:** Send messages and get intelligent replies
+- **AI Model Selection:** Choose from available local Ollama models
+- **Dynamic Model Discovery:** Auto-detect installed models via backend
+- **AI Responses:** Send messages and get intelligent replies using selected model
 - **Task Creation:** Create tickets directly from chat
 - **Task Editing:** Edit metadata in chat context
+- **Keyboard Handling:** KeyboardAvoidingView for iOS/Android mobile compatibility
 - **Real-time Notifications:** See created tasks instantly
 - **Responsive Layout:** Adapts bubble width based on screen size
 
@@ -36,6 +43,19 @@ A modern, responsive task management application with AI-powered chat assistant,
 - **Password Management:** Change password securely
 - **Graceful Logout:** Branded confirmation modal
 - **Session Persistence:** Auto-save login state
+
+### ⚙️ Settings & System Configuration
+- **AI Model Selection:** Browse and select from available Ollama models
+- **Model Discovery:** Real-time backend detection of installed models
+- **System Status:** View backend connectivity and active model in settings
+- **Persistent Selection:** Selected model saved to AsyncStorage for next session
+
+### 🔌 System Status Indicator
+- **Sidebar Status Module:** Persistent connectivity indicator on left sidebar
+- **Health Monitoring:** 10-second polling interval with 3-second timeout
+- **Visual Status Dot:** Green (#00FF66) when online, Red (#FF2C55) when offline
+- **Active Model Display:** Rotated vertical text showing currently selected AI model
+- **Dynamic Font Scaling:** Text automatically scales based on model name length
 
 ### 🔐 Authentication
 - **Sign Up / Login:** Create accounts and authenticate
@@ -77,11 +97,12 @@ ai-kanban-app/
 │   │   ├── _layout.tsx               # Root layout with gatekeeper
 │   │   ├── index.tsx                 # Auth splash screen
 │   │   └── (tabs)/
-│   │       ├── _layout.tsx           # Tab navigation
-│   │       ├── board.tsx             # Kanban board
-│   │       ├── chat.tsx              # AI chat interface
+│   │       ├── _layout.tsx           # Tab navigation with sidebar status
+│   │       ├── board.tsx             # Kanban board with CRUD
+│   │       ├── chat.tsx              # AI chat with model selection
 │   │       ├── calendar.tsx          # Timeline calendar
-│   │       └── profile.tsx           # User profile
+│   │       ├── profile.tsx           # User profile & stats
+│   │       └── settings.tsx          # AI model selection & config
 │   ├── context/
 │   │   └── AuthContext.tsx           # Auth state management
 │   ├── constants/
@@ -92,7 +113,7 @@ ai-kanban-app/
 │   └── tsconfig.json                 # TypeScript config
 │
 └── ai-kanban-backend/                # Backend (Python/FastAPI)
-    ├── main.py                       # API server
+    ├── main.py                       # API server with health check
     └── memory_db/
         └── chroma.sqlite3            # Vector database
 ```
@@ -218,26 +239,43 @@ export const BACKEND_URL = 'http://YOUR_IP:8000';
 
 **Kanban Board:**
 - Scroll horizontally (mobile) or view all columns (desktop)
-- Tap card to see full details
+- Tap card to open edit modal and modify ticket details
+- Tap movement buttons (↑↑↓↓→← Unicode) to move between columns
 - Tap priority pill to see urgency level
 - Due date shown in monospace format: `[ YYYY-MM-DD ]`
+- Pull down to refresh tickets from backend
 - "+ ADD TICKET" button at bottom of each column
 
 **Chat:**
-- Type message and send
-- AI responds with task suggestions
+- Select active AI model in Settings first
+- Type message and send (includes selected model)
+- AI responds using chosen model with task suggestions
 - Create tickets from chat with one tap
 - See chat history on reload
+- Keyboard automatically moves modal on mobile
 
 **Calendar:**
 - View all tasks organized by due date
 - Color indicators for status
 - Tap task to view details
+- Pull down to refresh
+
+**Settings:**
+- View available Ollama models (auto-discovered from backend)
+- Tap model card to select active model (inverted colors when active)
+- See backend connectivity status and selected model info
+- Model selection persists across app restarts
 
 **Profile:**
 - See statistics dashboard
 - Change password securely
 - Logout with confirmation modal
+
+**Sidebar Status:**
+- Green indicator dot = Backend online
+- Red indicator dot = Backend offline
+- Rotated model text shows currently active AI model
+- Updates every 10 seconds automatically
 
 ---
 
@@ -291,8 +329,18 @@ PUT    /api/tickets/{id}         Update ticket status/details
 
 ### Chat
 ```
-POST   /api/chat                 Send message, get AI response
+POST   /api/chat                 Send message, get AI response (includes model field)
 GET    /api/chat/history         Fetch chat history (user_id query param)
+```
+
+### AI Models
+```
+GET    /api/ai/models            Fetch available Ollama models
+```
+
+### System Health
+```
+GET    /api/health               Backend connectivity check (returns {"status": "ONLINE"})
 ```
 
 ### User
@@ -333,15 +381,31 @@ ifconfig | grep "inet " | grep -v 127.0.0.1
 3. Ensure phone and computer on same Wi-Fi
 4. Check firewall isn't blocking port 8000
 
+### Status indicator shows RED (offline)
+1. Verify backend is running on port 8000
+2. Check health endpoint manually: `curl http://localhost:8000/api/health`
+3. Confirm BACKEND_URL in config.ts is correct and accessible from device
+
+### Settings screen shows "OLLAMA_OFFLINE"
+1. Verify Ollama is running on http://localhost:11434
+2. Check backend can reach Ollama: `curl http://localhost:11434/api/tags`
+3. Start Ollama: `ollama serve`
+
+### Chat not sending messages with selected model
+1. Verify model is saved to AsyncStorage: Check settings screen for active model
+2. Check backend /api/chat receives model field in timeline
+3. Verify selected model exists in Ollama: `ollama list`
+4. Check Ollama is running and responsive
+
 ### Cards not displaying on mobile
 1. Clear cache: `npx expo start --clear`
 2. Reload app: Press `r` in Expo terminal
 3. Hard reload on device: Shake phone, select "Debug JS Remotely"
 
-### Chat not working
-1. Check backend `/api/chat` endpoint is implemented
-2. Verify user_id is being sent
-3. Check browser console for network errors
+### Ticket edit modal not appearing
+1. Verify ticket card is tappable (on board.tsx)
+2. Check modal state is triggering: Look for `setEditingTicket()` in logs
+3. Ensure KeyboardAvoidingView is wrapping modal on mobile devices
 
 ---
 
@@ -434,8 +498,12 @@ For issues or questions:
 
 ## 🏗️ Roadmap
 
+- [x] Task CRUD operations (Create, Read, Update, Delete)
+- [x] AI model selection and discovery
+- [x] System health monitoring
+- [x] Production-grade error handling & UI polish
 - [ ] Task search functionality
-- [ ] Task filtering (by priority, due date)
+- [ ] Task filtering (by priority, due date, model)
 - [ ] Recurring tasks
 - [ ] Team collaboration
 - [ ] Push notifications
@@ -443,9 +511,10 @@ For issues or questions:
 - [ ] Dark/Light mode toggle
 - [ ] Offline mode with sync
 - [ ] Custom themes
+- [ ] Multi-language support
 
 ---
 
 **Built with ⚡ by Sohith Vishnu**
 
-Last Updated: April 8, 2026
+Last Updated: April 9, 2026
