@@ -1,10 +1,11 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, Modal, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, Modal, useWindowDimensions, Alert } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { COLORS, BOLD_STYLES } from '../../constants/theme';
 import { BACKEND_URL } from '../../constants/config';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ChatScreen() {
   const { user, logout } = useAuth();
@@ -42,9 +43,12 @@ export default function ChatScreen() {
       });
       const data = await res.json();
       if (data.success) setMessages(data.history);
+      else {
+        console.error("History load failed:", data.error);
+      }
     } catch (e: any) { 
       if (e.name !== 'AbortError') {
-        console.log("History failed:", e.message);
+        console.error("History fetch failed:", e.message);
       }
     }
   }, [user]);
@@ -80,8 +84,13 @@ export default function ChatScreen() {
       if (data.success) {
         setEditingTask(null);
         loadHistory();
+      } else {
+        Alert.alert('Error', data.error || 'Failed to save task');
       }
-    } catch (e) { alert("FAILED TO SAVE"); }
+    } catch (e: any) { 
+      console.error("Task save failed", e);
+      Alert.alert('Network Error', 'Could not save task. Please try again.');
+    }
   };
 
   const sendMessage = async () => {
@@ -92,16 +101,29 @@ export default function ChatScreen() {
     setLoading(true);
 
     try {
+      // Retrieve the selected AI model from storage
+      const activeModel = await AsyncStorage.getItem('@system_active_model');
+
       const res = await fetch(`${BACKEND_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg.text, user_id: user.id }),
+        body: JSON.stringify({ 
+          message: userMsg.text, 
+          user_id: user.id,
+          model: activeModel  // Send the selected model
+        }),
       });
       const data = await res.json();
       if (data.success) {
         setMessages(prev => [...prev, { id: 'ai-'+Date.now(), text: data.reply, sender: 'ai', task: data.task }]);
+      } else {
+        console.error("Chat response error:", data.error);
+        Alert.alert('Error', data.error || 'Failed to process message');
       }
-    } catch (e) { alert("OFFLINE"); }
+    } catch (e: any) { 
+      console.error("Chat send failed", e);
+      Alert.alert('Network Error', 'Could not send message. Please check your connection.');
+    }
     finally { setLoading(false); }
   };
 
@@ -136,65 +158,67 @@ export default function ChatScreen() {
             )}
           </View>
         ))}
-        {loading && <ActivityIndicator color="#00FF66" style={{ marginTop: 20 }} />}
+        {loading && <Text style={{ color: '#00FF66', fontWeight: '900', letterSpacing: 2, fontSize: 12, marginTop: 20, textAlign: 'center' }}>[ PROCESSING... ]</Text>}
       </ScrollView>
 
       {/* EDIT MODAL */}
       <Modal visible={!!editingTask} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>EDIT_TICKET /</Text>
-            <TextInput 
-                style={styles.modalInput} 
-                value={editingTask?.title} 
-                onChangeText={(t) => setEditingTask({...editingTask, title: t})}
-                placeholder="TITLE..." placeholderTextColor="#555"
-            />
-            <TextInput 
-                style={styles.modalInput} 
-                value={editingTask?.dueDate} 
-                onChangeText={(t) => setEditingTask({...editingTask, dueDate: t})}
-                placeholder="DUE_DATE (YYYY-MM-DD)" placeholderTextColor="#555"
-            />
-            <View style={styles.rowInputs}>
-              <View style={styles.halfInput}>
-                <Text style={styles.inputLabel}>PRIORITY</Text>
-                <View style={styles.selectRow}>
-                  {['low', 'medium', 'high'].map((p) => (
-                    <TouchableOpacity 
-                      key={p}
-                      style={[styles.selectBtn, editingTask?.priority === p && styles.selectBtnActive]}
-                      onPress={() => setEditingTask({...editingTask, priority: p})}
-                    >
-                      <Text style={[styles.selectBtnText, editingTask?.priority === p && styles.selectBtnTextActive]}>
-                        {p.toUpperCase()}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={100} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>EDIT_TICKET /</Text>
+              <TextInput 
+                  style={styles.modalInput} 
+                  value={editingTask?.title} 
+                  onChangeText={(t) => setEditingTask({...editingTask, title: t})}
+                  placeholder="TITLE..." placeholderTextColor="#555"
+              />
+              <TextInput 
+                  style={styles.modalInput} 
+                  value={editingTask?.dueDate} 
+                  onChangeText={(t) => setEditingTask({...editingTask, dueDate: t})}
+                  placeholder="DUE_DATE (YYYY-MM-DD)" placeholderTextColor="#555"
+              />
+              <View style={styles.rowInputs}>
+                <View style={styles.halfInput}>
+                  <Text style={styles.inputLabel}>PRIORITY</Text>
+                  <View style={styles.selectRow}>
+                    {['low', 'medium', 'high'].map((p) => (
+                      <TouchableOpacity 
+                        key={p}
+                        style={[styles.selectBtn, editingTask?.priority === p && styles.selectBtnActive]}
+                        onPress={() => setEditingTask({...editingTask, priority: p})}
+                      >
+                        <Text style={[styles.selectBtnText, editingTask?.priority === p && styles.selectBtnTextActive]}>
+                          {p.toUpperCase()}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+                <View style={styles.halfInput}>
+                  <Text style={styles.inputLabel}>STATUS</Text>
+                  <View style={styles.selectRow}>
+                    {['TODO', 'IN_PROGRESS', 'DONE'].map((s) => (
+                      <TouchableOpacity 
+                        key={s}
+                        style={[styles.selectBtn, editingTask?.status === s && styles.selectBtnActive]}
+                        onPress={() => setEditingTask({...editingTask, status: s})}
+                      >
+                        <Text style={[styles.selectBtnText, editingTask?.status === s && styles.selectBtnTextActive]}>
+                          {s.substring(0, 3).toUpperCase()}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
               </View>
-              <View style={styles.halfInput}>
-                <Text style={styles.inputLabel}>STATUS</Text>
-                <View style={styles.selectRow}>
-                  {['TODO', 'IN_PROGRESS', 'DONE'].map((s) => (
-                    <TouchableOpacity 
-                      key={s}
-                      style={[styles.selectBtn, editingTask?.status === s && styles.selectBtnActive]}
-                      onPress={() => setEditingTask({...editingTask, status: s})}
-                    >
-                      <Text style={[styles.selectBtnText, editingTask?.status === s && styles.selectBtnTextActive]}>
-                        {s.substring(0, 3).toUpperCase()}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+              <View style={styles.modalActions}>
+                  <TouchableOpacity onPress={() => setEditingTask(null)}><Text style={styles.cancelText}>CANCEL</Text></TouchableOpacity>
+                  <TouchableOpacity style={styles.saveBtn} onPress={saveEditedTask}><Text style={styles.saveBtnText}>SAVE_CHANGES</Text></TouchableOpacity>
               </View>
             </View>
-            <View style={styles.modalActions}>
-                <TouchableOpacity onPress={() => setEditingTask(null)}><Text style={styles.cancelText}>CANCEL</Text></TouchableOpacity>
-                <TouchableOpacity style={styles.saveBtn} onPress={saveEditedTask}><Text style={styles.saveBtnText}>SAVE_CHANGES</Text></TouchableOpacity>
-            </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 

@@ -15,7 +15,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (saved) {
           const parsed = JSON.parse(saved);
           setUser(parsed);
-          console.log('[Auth] Session restored:', parsed.username);
         }
       } catch (error) {
         console.error('[Auth] Error loading session:', error);
@@ -28,7 +27,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signup = async (username: string, password: string) => {
     try {
-      console.log('[Auth] Attempting signup for:', username);
       const res = await fetch(`${BACKEND_URL}/api/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -41,13 +39,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const data = await res.json();
-      console.log('[Auth] Signup response:', data);
 
       if (data.success) {
         const u = { id: data.user_id, username: data.username };
         setUser(u);
         await AsyncStorage.setItem('@bubble_session', JSON.stringify(u));
-        console.log('[Auth] Signup successful, session saved');
         return { success: true };
       }
       return { success: false, error: data.error || 'Sign up failed' };
@@ -59,7 +55,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (username: string, password: string) => {
     try {
-      console.log('[Auth] Attempting login for:', username);
       const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -72,13 +67,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const data = await res.json();
-      console.log('[Auth] Login response:', data);
 
       if (data.success) {
         const u = { id: data.user_id, username: data.username };
         setUser(u);
         await AsyncStorage.setItem('@bubble_session', JSON.stringify(u));
-        console.log('[Auth] Login successful, session saved');
         return { success: true };
       }
       return { success: false, error: data.error || 'Login failed' };
@@ -90,14 +83,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      console.log('[Auth] Starting logout process...');
       // Remove from storage first
       await AsyncStorage.removeItem('@bubble_session');
-      console.log('[Auth] AsyncStorage cleared');
       // Then update state to trigger UI re-render
       setUser(null);
-      console.log('[Auth] User state set to null');
-      console.log('[Auth] Logout successful');
     } catch (error) {
       console.error('[Auth] Error during logout:', error);
       // Still set user to null even if AsyncStorage fails

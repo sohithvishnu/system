@@ -90,6 +90,13 @@ class AuthCredentials(BaseModel):
 class ChatMessage(BaseModel):
     message: str
     user_id: str
+    model: Optional[str] = None  # AI model selection, defaults to None (backend will use default)
+
+# --- HEALTH CHECK ---
+@app.get("/api/health")
+async def health_check():
+    """Simple health check endpoint"""
+    return {"status": "ONLINE"}
 
 @app.post("/api/auth/signup")
 async def signup(credentials: AuthCredentials):
@@ -241,43 +248,51 @@ async def get_user_stats(user_id: str):
 # --- DATA RETRIEVAL ---
 @app.get("/api/chat/history")
 async def get_chat_history(user_id: str):
-    conn = sqlite3.connect("workspace.db")
-    cursor = conn.cursor()
-    # LEFT JOIN with tickets to include task data in chat history
-    cursor.execute("""
-        SELECT ch.id, ch.text, ch.sender, t.id, t.title, t.dueDate, t.priority, t.status
-        FROM chat_history ch
-        LEFT JOIN tickets t ON ch.task_id = t.id
-        WHERE ch.user_id = ?
-        ORDER BY ch.timestamp ASC
-    """, (user_id,))
-    rows = cursor.fetchall()
-    conn.close()
-    
-    history = []
-    for r in rows:
-        msg = {"id": r[0], "text": r[1], "sender": r[2]}
-        # If task_id is not null, include the task object
-        if r[3] is not None:
-            msg["task"] = {
-                "id": r[3],
-                "title": r[4],
-                "dueDate": r[5],
-                "priority": r[6],
-                "status": r[7]
-            }
-        history.append(msg)
-    
-    return {"success": True, "history": history}
+    try:
+        conn = sqlite3.connect("workspace.db")
+        cursor = conn.cursor()
+        # LEFT JOIN with tickets to include task data in chat history
+        cursor.execute("""
+            SELECT ch.id, ch.text, ch.sender, t.id, t.title, t.dueDate, t.priority, t.status
+            FROM chat_history ch
+            LEFT JOIN tickets t ON ch.task_id = t.id
+            WHERE ch.user_id = ?
+            ORDER BY ch.timestamp ASC
+        """, (user_id,))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        history = []
+        for r in rows:
+            msg = {"id": r[0], "text": r[1], "sender": r[2]}
+            # If task_id is not null, include the task object
+            if r[3] is not None:
+                msg["task"] = {
+                    "id": r[3],
+                    "title": r[4],
+                    "dueDate": r[5],
+                    "priority": r[6],
+                    "status": r[7]
+                }
+            history.append(msg)
+        
+        return {"success": True, "history": history}
+    except Exception as e:
+        print(f"[CHAT_HISTORY] Error: {e}")
+        return {"success": False, "error": "Failed to fetch chat history"}
 
 @app.get("/api/tickets")
 async def get_tickets(user_id: str):
-    conn = sqlite3.connect("workspace.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, title, dueDate, priority, status FROM tickets WHERE user_id = ? ORDER BY dueDate ASC", (user_id,))
-    rows = cursor.fetchall()
-    conn.close()
-    return {"success": True, "tickets": [{"id": r[0], "title": r[1], "dueDate": r[2], "priority": r[3], "status": r[4]} for r in rows]}
+    try:
+        conn = sqlite3.connect("workspace.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, title, dueDate, priority, status FROM tickets WHERE user_id = ? ORDER BY dueDate ASC", (user_id,))
+        rows = cursor.fetchall()
+        conn.close()
+        return {"success": True, "tickets": [{"id": r[0], "title": r[1], "dueDate": r[2], "priority": r[3], "status": r[4]} for r in rows]}
+    except Exception as e:
+        print(f"[GET_TICKETS] Error: {e}")
+        return {"success": False, "error": "Failed to fetch tickets"}
 
 class UpdateTicketRequest(BaseModel):
     title: Optional[str] = None
@@ -288,25 +303,53 @@ class UpdateTicketRequest(BaseModel):
 
 @app.put("/api/tickets/{ticket_id}")
 async def update_ticket(ticket_id: int, data: UpdateTicketRequest):
-    conn = sqlite3.connect("workspace.db")
-    cursor = conn.cursor()
-    
-    # We update only the fields provided, but strictly for the current user_id
-    cursor.execute("""
-        UPDATE tickets 
-        SET title = COALESCE(?, title), 
-            dueDate = COALESCE(?, dueDate), 
-            priority = COALESCE(?, priority), 
-            status = COALESCE(?, status)
-        WHERE id = ? AND user_id = ?
-    """, (data.title, data.dueDate, data.priority, data.status, ticket_id, data.user_id))
-    
-    conn.commit()
-    conn.close()
-    return {"success": True, "message": "Ticket updated"}
+    try:
+        conn = sqlite3.connect("workspace.db")
+        cursor = conn.cursor()
+        
+        # We update only the fields provided, but strictly for the current user_id
+        cursor.execute("""
+            UPDATE tickets 
+            SET title = COALESCE(?, title), 
+                dueDate = COALESCE(?, dueDate), 
+                priority = COALESCE(?, priority), 
+                status = COALESCE(?, status)
+            WHERE id = ? AND user_id = ?
+        """, (data.title, data.dueDate, data.priority, data.status, ticket_id, data.user_id))
+        
+        conn.commit()
+        conn.close()
+        return {"success": True, "message": "Ticket updated"}
+    except Exception as e:
+        print(f"[UPDATE_TICKET] Error: {e}")
+        return {"success": False, "error": "Failed to update ticket"}
 
 
 # --- CORE AI LOGIC ---
+@app.get("/api/ai/models")
+async def get_ai_models():
+    """Fetch available Ollama models"""
+    try:
+        response = requests.get("http://localhost:11434/api/tags", timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Extract model names
+        models = []
+        if 'models' in data:
+            models = [model['name'] for model in data['models']]
+        
+        return {"success": True, "models": models}
+    except requests.exceptions.ConnectionError:
+        print("[AI_MODELS] Ollama server is offline")
+        return {"success": False, "error": "Ollama server is offline."}
+    except requests.exceptions.Timeout:
+        print("[AI_MODELS] Ollama server timeout")
+        return {"success": False, "error": "Ollama server is not responding."}
+    except Exception as e:
+        print(f"[AI_MODELS] Error: {e}")
+        return {"success": False, "error": "Failed to fetch models"}
+
 @app.post("/api/chat")
 async def chat_with_ollama(chat: ChatMessage):
     cet_time = datetime.now(ZoneInfo("CET"))
@@ -365,8 +408,11 @@ async def chat_with_ollama(chat: ChatMessage):
     """
     
     try:
+        # Use provided model or default to llama3
+        model_name = chat.model or "llama3"
+        
         response = requests.post("http://localhost:11434/api/generate", json={
-            "model": "llama3", "prompt": prompt, "stream": False, "format": "json" 
+            "model": model_name, "prompt": prompt, "stream": False, "format": "json" 
         })
         response.raise_for_status()
         

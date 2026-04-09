@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Modal, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Modal, useWindowDimensions, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
@@ -14,6 +14,7 @@ export default function CalendarScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   
   // Responsive logic
   const isMobile = screenWidth < 768;
@@ -41,15 +42,24 @@ export default function CalendarScreen() {
             .filter((t: Ticket) => t.dueDate)
             .sort((a: Ticket, b: Ticket) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
         setTickets(validTickets);
+      } else {
+        Alert.alert('Error', data.error || 'Failed to load agenda');
       }
     } catch (error: any) {
       if (error.name !== 'AbortError') {
-        console.log("Failed to fetch tickets", error);
+        console.error("Failed to fetch tickets", error);
+        Alert.alert('Network Error', 'Could not reach the server. Please check your connection.');
       }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchTickets();
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -65,7 +75,7 @@ export default function CalendarScreen() {
 
   const updateTicketStatus = async (ticketId: string, newStatus: string) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/${ticketId}`, {
+      const res = await fetch(`${BACKEND_URL}/api/tickets/${ticketId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -77,10 +87,11 @@ export default function CalendarScreen() {
       if (data.success) {
         fetchTickets();
       } else {
-        Alert.alert('Error', 'Failed to update status');
+        Alert.alert('Error', data.error || 'Failed to update status');
       }
-    } catch (e) {
-      Alert.alert('Error', 'Failed to update status');
+    } catch (e: any) {
+      console.error("Failed to update status", e);
+      Alert.alert('Network Error', 'Could not update ticket. Please try again.');
     }
   };
 
@@ -113,9 +124,11 @@ export default function CalendarScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator color={COLORS.primary} style={{ marginTop: 40 }} />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ color: '#00FF66', fontWeight: '900', letterSpacing: 2, fontSize: 14 }}>[ SYSTEM_LOADING... ]</Text>
+        </View>
       ) : (
-        <ScrollView style={styles.agendaScroll} contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView style={styles.agendaScroll} contentContainerStyle={{ paddingBottom: 40 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#00FF66" />}>
           {Object.keys(groupedTickets).length === 0 ? (
               <View style={styles.emptyState}>
                   <Text style={styles.emptyText}>NO UPCOMING EVENTS.</Text>

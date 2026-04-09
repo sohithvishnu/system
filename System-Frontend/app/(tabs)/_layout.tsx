@@ -1,7 +1,9 @@
-import React from 'react';
-import { View, StyleSheet, TouchableOpacity, SafeAreaView, useWindowDimensions } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, TouchableOpacity, SafeAreaView, useWindowDimensions, Text } from 'react-native';
 import { Link, Slot, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BACKEND_URL } from '../../constants/config';
 
 export default function SideNavigationLayout() {
   const pathname = usePathname();
@@ -10,11 +12,16 @@ export default function SideNavigationLayout() {
   // Responsive breakpoint: tablet is 768px
   const isMobile = width < 768;
 
+  // State for system status
+  const [isOnline, setIsOnline] = useState<boolean>(false);
+  const [activeModel, setActiveModel] = useState<string>('NONE');
+
   const navItems = [
     { name: 'chat', icon: 'terminal-outline', label: 'SYSTEM' },
     { name: 'board', icon: 'grid-outline', label: 'BOARD' },
     { name: 'calendar', icon: 'flash-outline', label: 'AGENDA' },
     { name: 'profile', icon: 'id-card-outline', label: 'USER' },
+    { name: 'settings', icon: 'hardware-chip-outline', label: 'CONFIG' },
   ];
 
   // Responsive dimensions
@@ -23,13 +30,68 @@ export default function SideNavigationLayout() {
   const navGap = isMobile ? 20 : 30;
   const activeIndicatorLeft = isMobile ? -5 : -11;
 
+  // Check system health and model status
+  const checkSystemStatus = async () => {
+    // 1. Check active model from AsyncStorage
+    try {
+      const saved = await AsyncStorage.getItem('@system_active_model');
+      setActiveModel(saved || 'NONE');
+    } catch (e) {
+      console.error('Failed to load active model', e);
+      setActiveModel('ERR');
+    }
+
+    // 2. Check backend health with timeout
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3-second timeout
+      
+      const response = await fetch(`${BACKEND_URL}/api/health`, {
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        setIsOnline(true);
+      } else {
+        setIsOnline(false);
+      }
+    } catch (e) {
+      console.error('Health check failed', e);
+      setIsOnline(false);
+    }
+  };
+
+  // Calculate dynamic font size based on model name length
+  const calculateFontSize = (name: string) => {
+    const length = name.length;
+    if (length <= 5) return 13;
+    if (length <= 8) return 11;
+    if (length <= 12) return 9.5;
+    return 8;
+  };
+
+  const calculateLetterSpacing = (name: string) => {
+    const length = name.length;
+    if (length <= 5) return 1;
+    if (length <= 8) return 0.5;
+    return 0.2;
+  };
+
+  // Set up periodic health checks
+  useEffect(() => {
+    checkSystemStatus(); // Initial check
+    const interval = setInterval(checkSystemStatus, 10000); // Check every 10 seconds
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <View style={styles.container}>
       {/* 🛠️ THE SIDEBAR DOCK */}
       <View style={[styles.sidebar, { width: sidebarWidth }]}>
         <SafeAreaView style={styles.sidebarInner}>
-          {/* LOGO REMOVED FOR CLEANER UI */}
-          
+          {/* Navigation Stack */}
           <View style={[styles.navStack, { gap: navGap }]}>
             {navItems.map((item) => {
               const isActive = pathname.includes(item.name);
@@ -46,6 +108,29 @@ export default function SideNavigationLayout() {
                 </Link>
               );
             })}
+          </View>
+
+          {/* STATUS MODULE AT BOTTOM */}
+          <View style={styles.statusModule}>
+            {/* Status Dot */}
+            <View style={[
+              styles.statusDot,
+              { backgroundColor: isOnline ? '#00FF66' : '#FF2C55' }
+            ]} />
+            
+            {/* Rotated Model Text */}
+            <View style={styles.rotatedTextContainer}>
+              <Text style={[
+                styles.modelText,
+                {
+                  color: isOnline ? '#00FF66' : '#FF2C55',
+                  fontSize: calculateFontSize(activeModel),
+                  letterSpacing: calculateLetterSpacing(activeModel),
+                }
+              ]}>
+                {activeModel}
+              </Text>
+            </View>
           </View>
         </SafeAreaView>
       </View>
@@ -65,42 +150,66 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   sidebar: {
-    width: 72,
-    backgroundColor: '#050505',
-    borderRightWidth: 1.5,
-    borderColor: '#1a1a1a',
+    backgroundColor: '#000',
+    borderRightWidth: 2,
+    borderRightColor: '#1a1a1a',
   },
   sidebarInner: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: 16,
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
   },
   navStack: {
-    marginTop: 20, // Added margin here to replace the space where the logo was
-    gap: 30,
     alignItems: 'center',
   },
   navItem: {
-    width: 50,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
     position: 'relative',
+    padding: 12,
   },
   activeIndicator: {
     position: 'absolute',
-    left: -11, 
-    width: 4,
-    height: 24,
+    top: '50%',
+    marginTop: -8,
+    width: 12,
+    height: 16,
     backgroundColor: '#00FF66',
-    borderTopRightRadius: 4,
-    borderBottomRightRadius: 4,
-    shadowColor: '#00FF66',
-    shadowOpacity: 1,
-    shadowRadius: 10,
-    elevation: 5,
+    borderRightWidth: 2,
+    borderRightColor: '#00FF66',
   },
   content: {
     flex: 1,
+    backgroundColor: '#000',
+  },
+  statusModule: {
+    alignItems: 'center',
+    gap: 16,
+    paddingBottom: 16,
+    paddingHorizontal: 8,
+    borderTopWidth: 2,
+    borderTopColor: '#1a1a1a',
+    paddingTop: 16,
+  },
+  statusDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 3,
+    borderColor: '#1a1a1a',
+    shadowColor: '#00FF66',
+    shadowOpacity: 0.8,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  rotatedTextContainer: {
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    transform: [{ rotate: '-90deg' }],
+  },
+  modelText: {
+    fontFamily: 'Courier New',
+    fontWeight: '800',
   },
 });

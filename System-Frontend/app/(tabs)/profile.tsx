@@ -45,11 +45,13 @@ export default function ProfileScreen() {
       const data = await res.json();
       if (data.success) {
         setUserStats(data.stats);
+      } else {
+        console.error("Stats load failed:", data.error);
       }
     } catch (e: any) {
       // Ignore abort errors, they're expected when navigation happens
       if (e.name !== 'AbortError') {
-        console.log("Stats load failed:", e.message);
+        console.error("Stats fetch failed:", e.message);
       }
     }
   }, [user?.id]);
@@ -111,8 +113,9 @@ export default function ProfileScreen() {
       } else {
         setPasswordError(data.error || 'Failed to change password');
       }
-    } catch (e) {
-      setPasswordError('Network error');
+    } catch (e: any) {
+      console.error("Password change failed", e);
+      setPasswordError('Network error. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -129,9 +132,9 @@ export default function ProfileScreen() {
         {
           text: 'CONFIRM',
           onPress: () => {
-            console.log('[Profile] Logout initiated...');
+            console.error('[Profile] Logout initiated...');
             logout().then(() => {
-              console.log('[Profile] Logout completed, gatekeeper will redirect');
+              console.error('[Profile] Logout completed, gatekeeper will redirect');
             }).catch((error: any) => {
               console.error('[Profile] Logout error:', error);
               Alert.alert('ERROR', 'Failed to logout');
@@ -144,10 +147,10 @@ export default function ProfileScreen() {
   };
 
   const confirmWebLogout = () => {
-    console.log('[Profile] Logout initiated via modal...');
+    console.error('[Profile] Logout initiated via modal...');
     setShowLogoutModal(false);
     logout().then(() => {
-      console.log('[Profile] Logout completed, gatekeeper will redirect');
+      console.error('[Profile] Logout completed, gatekeeper will redirect');
     }).catch((error: any) => {
       console.error('[Profile] Logout error:', error);
       if (Platform.OS !== 'web') {
