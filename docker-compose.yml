@@ -1,0 +1,303 @@
+version: '3.9'
+
+# Production Docker Compose configuration
+# Services: FastAPI backend, Redis (Celery), Ollama (LLM), Celery worker
+#
+# Rationale:
+# - Multi-service setup: Each service containerized, independently scalable
+# - Shared network: Services communicate via hostname (redis, ollama, backend)
+# - Persistent volumes: Data survives container restart
+# - Health checks: Automatic service status monitoring
+# - Environment file: Secrets/config from .env (not in docker-compose.yml)
+
+services:
+  # FastAPI Backend (main application server)
+  backend:
+    # Build from Dockerfile in current directory
+    build:
+      context: ./System-Backend
+      dockerfile: Dockerfile
+    
+    # Container name for easy reference
+    container_name: system-backend
+    
+    # Restart policy: Always restart unless stopped manually
+    # Rationale: Production resiliency (auto-recovery from crashes)
+    restart: unless-stopped
+    
+    # Expose port 8000 to host
+    # Rationale: Docker internal port 8000 maps to host port 8000
+    # Access at http://localhost:8000 or http://<ip>:8000
+    ports:
+      - "8000:8000"
+    
+    # Environment variables (read from .env file)
+    # Rationale: Secrets/config not hardcoded in docker-compose.yml
+    env_file:
+      - .env.production
+    
+    # Additional environment variables (override or default)
+    environment:
+      # Database connection (SQLite on shared volume)
+      DATABASE_URL: "sqlite:////app/data/workspace.db"
+      
+      # Redis for Celery task queue
+      CELERY_BROKER_URL: "redis://redis:6379/0"
+      CELERY_BACKEND_URL: "redis://redis:6379/1"
+      
+      # Ollama endpoint (within Docker network, use service hostname)
+      OLLAMA_ENDPOINT: "http://ollama:11434"
+      
+      # Logging
+      LOG_LEVEL: "INFO"
+      LOG_FILE: "/app/logs/backend.log"
+      
+      # Python settings
+      PYTHONUNBUFFERED: "1"
+    
+    # Volumes: Map host directories to container directories
+    volumes:
+      # Persistent SQLite database
+      # Host: ./data/workspace.db (on host machine)
+      # Container: /app/data/ (inside container, mounted as read-write)
+      # Rationale: Survives container restart, accessible from host for backups
+      - ./data:/app/data
+      
+      # ChromaDB vector storage
+      - ./chroma_data:/app/chroma_data
+      
+      # Application logs
+      - ./logs:/app/logs
+    
+    # Depends on: Wait for these services to start before starting this one
+    # Note: 'depends_on' does NOT wait for service to be healthy, just running
+    # (For actual health checks, use 'condition: service_healthy')
+    depends_on:
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started  # Ollama takes time to load models
+    
+    # Network configuration
+    networks:
+      - system
+    
+    # Resource limits (prevent resource exhaustion)
+    # Rationale: Runaway memory process won't crash whole system
+    deploy:
+      resources:
+        limits:
+          cpus: '2'        # Max 2 CPU cores
+          memory: 2G       # Max 2GB RAM
+        reservations:
+          cpus: '1'        # Reserve 1 CPU core (priority)
+          memory: 1G       # Reserve 1GB RAM
+
+  # Redis (In-memory data store, used by Celery)
+  redis:
+    # Official Redis image
+    image: redis:7-alpine
+    
+    container_name: system-redis
+    
+    restart: unless-stopped
+    
+    # Expose port 6379 (Redis internal port)
+    # Warning: Redis has NO AUTHENTICATION by default
+    # On production, either:
+    # 1. Don't expose to host (only accessible from Docker network)
+    # 2. Use requirepass config + AUTH command
+    ports:
+      - "6379:6379"
+    
+    # Data volume
+    volumes:
+      # Persistent Redis data (RDB snapshot + AOF log)
+      # Rationale: Tasks survive Redis restart
+      - redis_data:/data
+    
+    # Health check for Redis
+    # PING command should return PONG (indicates Redis is alive)
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    
+    networks:
+      - system
+    
+    # Run Redis in background (daemonize off = foreground, so Docker receives logs)
+    command: redis-server --appendonly yes --appendfsync everysec
+
+  # Ollama (Local LLM inference engine)
+  ollama:
+    # Official Ollama image
+    image: ollama/ollama:latest
+    
+    container_name: system-ollama
+    
+    restart: unless-stopped
+    
+    # GPU support (optional, only if host has NVIDIA GPU)
+    # Uncomment lines below to enable GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    
+    # Expose port 11434 for Ollama API
+    ports:
+      - "11434:11434"
+    
+    # Volume for model cache
+    volumes:
+      # Ollama downloads large models (4-7GB each)
+      # Store in persistent volume to avoid re-downloading on restart
+      # Rationale: First run takes 10+ min to download model
+      # After container restart, model is cached locally
+      - ollama_data:/root/.ollama
+    
+    # Health check
+    # Attempt to list models (/api/tags) - quick check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s  # Give Ollama time to load model
+    
+    networks:
+      - system
+    
+    environment:
+      # Optional: Set which model to preload on start
+      # OLLAMA_MODEL: "llama2"
+      # Optional: Increase memory limit if running large models
+      OLLAMA_MAX_LOADED_MODELS: "1"
+
+  # Celery Worker (Background task processor)
+  # Rationale: Offload long-running tasks (memory compile, journal summarize) to background
+  celery-worker:
+    # Use same image as backend (shares codebase)
+    build:
+      context: ./System-Backend
+      dockerfile: Dockerfile
+    
+    container_name: system-celery-worker
+    
+    restart: unless-stopped
+    
+    env_file:
+      - .env.production
+    
+    environment:
+      DATABASE_URL: "sqlite:////app/data/workspace.db"
+      CELERY_BROKER_URL: "redis://redis:6379/0"
+      CELERY_BACKEND_URL: "redis://redis:6379/1"
+      OLLAMA_ENDPOINT: "http://ollama:11434"
+      LOG_LEVEL: "INFO"
+      PYTHONUNBUFFERED: "1"
+    
+    volumes:
+      - ./data:/app/data
+      - ./chroma_data:/app/chroma_data
+      - ./logs:/app/logs
+    
+    depends_on:
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    
+    networks:
+      - system
+    
+    # Start Celery worker (not the FastAPI app)
+    # -l INFO: Log level
+    # -c 4: 4 concurrent workers
+    command: >
+      celery -A backend.tasks celery_app worker
+      --loglevel=info
+      --concurrency=4
+      --max-tasks-per-child=1000
+      --time-limit=600
+      --soft-time-limit=300
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # Celery Beat (Scheduled task scheduler)
+  # Rationale: Run periodic tasks (auto-complete tasks, cleanup, etc)
+  celery-beat:
+    build:
+      context: ./System-Backend
+      dockerfile: Dockerfile
+    
+    container_name: system-celery-beat
+    
+    restart: unless-stopped
+    
+    env_file:
+      - .env.production
+    
+    environment:
+      DATABASE_URL: "sqlite:////app/data/workspace.db"
+      CELERY_BROKER_URL: "redis://redis:6379/0"
+      CELERY_BACKEND_URL: "redis://redis:6379/1"
+      OLLAMA_ENDPOINT: "http://ollama:11434"
+      LOG_LEVEL: "INFO"
+      PYTHONUNBUFFERED: "1"
+    
+    volumes:
+      - ./data:/app/data
+      - ./chroma_data:/app/chroma_data
+      - ./logs:/app/logs
+    
+    depends_on:
+      redis:
+        condition: service_healthy
+    
+    networks:
+      - system
+    
+    # Start Celery Beat scheduler
+    command: >
+      celery -A backend.tasks celery_app beat
+      --loglevel=info
+      --scheduler=celery.beat:PersistentScheduler
+
+# Named volumes (persist data across container restarts)
+volumes:
+  redis_data:
+    driver: local
+  
+  ollama_data:
+    driver: local
+
+# Networks (allow inter-service communication)
+networks:
+  # Bridge network: Services can reach each other by hostname
+  # Rationale: redis:6379 from backend resolves to Redis container
+  # External traffic isolated (only port 8000 exposed by default)
+  system:
+    driver: bridge
+
+# Usage:
+# docker-compose up              # Start all services (foreground)
+# docker-compose up -d           # Start all services (background)
+# docker-compose down            # Stop and remove containers
+# docker-compose logs -f         # Follow all logs
+# docker-compose logs backend    # Follow only backend logs
+# docker-compose ps              # View running services
+# docker-compose exec backend bash  # Open shell inside container

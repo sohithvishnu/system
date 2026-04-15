@@ -85,6 +85,24 @@ A next-generation personal operating system with AI-powered task management, sem
 - **Persistent Entries:** All journals stored and searchable
 - **Timeline View:** Browse past summaries by date
 
+### 📁 Projects & Organization
+- **Project Management:** Create and organize tickets into discrete projects
+- **Project Filtering:** View tasks scoped to specific projects
+- **Project Association:** Assign tasks to projects during creation or editing
+- **Project Dashboard:** Centralized project overview with task counts
+
+### 🕸️ Topology & Relationship Visualization
+- **Network Visualization:** Interactive graph showing relationships between people
+- **Entity Connections:** Visual representation of tracked people and their relationships
+- **Network Analysis:** Understand social/professional network structure
+- **API-Driven:** `/api/network/topology` generates relationship data
+
+### 💫 Lifeline & Timeline View
+- **Daily Timeline:** Day-to-day chronological view of events and tasks
+- **Life Events:** Historical timeline of completed tasks and milestones
+- **Linear Perspective:** Sequential visualization of your life/work timeline
+- **Event Details:** Tap events for full details and context
+
 ### ⚙️ Settings & System Configuration
 - **AI Model Selection:** Browse and select from available Ollama models
 - **Model Discovery:** Real-time backend detection of installed models
@@ -188,6 +206,9 @@ system/
 │   │       ├── calendar.tsx               # Timeline calendar
 │   │       ├── journal.tsx                # End-of-day journal view
 │   │       ├── memory.tsx                 # Neural Matrix + Personnel Dossiers
+│   │       ├── projects.tsx               # Project management and organization
+│   │       ├── topology.tsx               # Relationship network visualization
+│   │       ├── lifeline.tsx               # Timeline view of life events
 │   │       ├── profile.tsx                # User profile & stats
 │   │       └── settings.tsx               # AI model selection & config
 │   ├── context/
@@ -460,44 +481,6 @@ Tasks now accept flexible datetime formats:
 
 ---
 
-## 🔌 API Endpoints
-
-### Authentication
-```
-POST   /api/auth/signup          Create new account
-POST   /api/auth/login           Login user
-POST   /api/auth/change-password Change password
-```
-
-### Tickets
-```
-GET    /api/tickets              Fetch all tickets (user_id query param)
-POST   /api/tickets              Create new ticket
-PUT    /api/tickets/{id}         Update ticket status/details
-```
-
-### Chat & Task Processing
-```
-POST   /api/chat                 Send message with Semantic XML extraction
-                                 - Strips markdown code blocks from LLM response
-                                 - Extracts <TASK> and <MEMORY> XML blocks
-                                 - Returns clean conversational text to frontend
-                                 Returns: { reply, task?, success }
-
-GET    /api/chat/history         Fetch session chat history
-GET    /api/chat/sessions        Fetch all sessions for user
-```
-
-### Neural Matrix (Identity Management)
-```
-GET    /api/memory/identity      Fetch all stored identity facts (grouped by category)
-                                 Returns: { identity: { IDENTITY: [], PREFERENCE: [], ... }, total }
-
-DELETE /api/memory/identity/{id} Delete specific identity fact
-```
-
-### Prompts & Configuration
-
 ---
 
 ## 🤖 Semantic XML Architecture & Entity Dossiers
@@ -738,6 +721,21 @@ GET    /api/journal/history          Fetch past journal entries (limit=30 defaul
 GET    /api/journal/{date}           Fetch specific date's journal
 ```
 
+### Projects (Project Management)
+```
+GET    /api/projects                 Fetch all user projects
+POST   /api/projects                 Create new project
+PUT    /api/projects/{id}            Update project details
+DELETE /api/projects/{id}            Delete project
+GET    /api/projects/{id}/tasks      Fetch tasks within project
+```
+
+### Network & Relationship Visualization
+```
+GET    /api/network/topology         Generate relationship network topology visualization
+                                     Returns: { nodes: [person_records], edges: [relationships] }
+```
+
 ### System & Configuration
 ```
 GET    /api/health                   Backend connectivity check
@@ -745,6 +743,9 @@ GET    /api/ai/models                List available Ollama models
 POST   /api/prompts                  Create custom system prompt
 GET    /api/prompts                  Fetch custom prompts (user_id filtered)
 PUT    /api/prompts/{id}             Update custom prompt
+DELETE /api/prompts/{id}             Delete custom prompt
+POST   /api/prompts/{id}/activate    Set prompt as active
+GET    /api/prompts/active           Fetch currently active custom prompt
 GET    /api/user/stats               Fetch user statistics (tasks, memory count, etc.)
 ```
 
@@ -976,6 +977,9 @@ For issues or questions:
 - [x] Centralized network configuration
 - [x] Retroactive memory compilation (`/api/memory/compile`)
 - [x] Personnel dossier dashboard
+- [x] Project management and organization
+- [x] Relationship topology visualization
+- [x] Lifeline/timeline view for life events
 - [ ] Task search functionality
 - [ ] Task filtering (by priority, due date, person, model)
 - [ ] Recurring tasks
@@ -995,4 +999,4 @@ For issues or questions:
 
 **Built with ⚡ by Sohith Vishnu**
 
-Last Updated: April 10, 2026 (v2.0 Production — Entity Dossiers + Tailscale Auto-Config)
+Last Updated: April 15, 2026 (v2.1 — Complete Feature Set with Projects, Topology, Lifeline)

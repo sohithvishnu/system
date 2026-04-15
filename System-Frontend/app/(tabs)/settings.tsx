@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert, useWindowDimensions, TextInput, Platform, Modal } from 'react-native';
+import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert, useWindowDimensions, TextInput, Platform, Modal, Linking } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { COLORS, BOLD_STYLES } from '../../constants/theme';
@@ -22,6 +22,11 @@ export default function SettingsScreen() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [promptsLoading, setPromptsLoading] = useState(false);
+  
+  // Documentation status state
+  const [docsServerOnline, setDocsServerOnline] = useState<boolean>(false);
+  const [checkingDocsStatus, setCheckingDocsStatus] = useState(false);
+  const DOCS_URL = 'http://localhost:8001';
 
   const isMobile = screenWidth < 768;
 
@@ -156,14 +161,6 @@ export default function SettingsScreen() {
     }
   }, [user?.id, prompts, loadPrompts]);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchModels();
-      loadActiveModel();
-      loadPrompts();
-    }, [fetchModels, loadActiveModel, loadPrompts])
-  );
-
   const selectModel = async (modelName: string) => {
     try {
       await AsyncStorage.setItem('@system_active_model', modelName);
@@ -173,6 +170,48 @@ export default function SettingsScreen() {
       Alert.alert('Error', 'Failed to save model selection');
     }
   };
+
+  // Check if docs server is running
+  const checkDocsStatus = useCallback(async () => {
+    setCheckingDocsStatus(true);
+    try {
+      const response = await fetch(DOCS_URL, { method: 'HEAD', timeout: 3000 });
+      setDocsServerOnline(response.status < 500);
+    } catch (e: any) {
+      console.error("Docs server check failed", e);
+      setDocsServerOnline(false);
+    } finally {
+      setCheckingDocsStatus(false);
+    }
+  }, []);
+
+  // Open documentation in browser
+  const openDocumentation = async () => {
+    try {
+      const canOpen = await Linking.canOpenURL(DOCS_URL);
+      if (canOpen) {
+        await Linking.openURL(DOCS_URL);
+      } else {
+        Alert.alert(
+          'DOCS_OFFLINE',
+          `Cannot connect to ${DOCS_URL}\n\nRun: mkdocs serve\n\nOr deploy to production server.`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (e: any) {
+      console.error("Failed to open docs", e);
+      Alert.alert('ERROR', 'Failed to open documentation URL');
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchModels();
+      loadActiveModel();
+      loadPrompts();
+      checkDocsStatus();
+    }, [fetchModels, loadActiveModel, loadPrompts, checkDocsStatus])
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -331,6 +370,41 @@ export default function SettingsScreen() {
             </View>
           </View>
         </Modal>
+
+        {/* SYSTEM DOCUMENTATION */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>[ SYSTEM_DOCUMENTATION ]</Text>
+          <Text style={styles.directiveDescription}>Browse_complete_technical_reference_wiki</Text>
+          
+          <View style={styles.docsStatusCard}>
+            <View style={styles.docsStatusRow}>
+              <View style={styles.docsStatusIndicator}>
+                <View style={[styles.statusDot, docsServerOnline ? styles.statusDotOnline : styles.statusDotOffline]} />
+                <Text style={styles.docsStatusText}>
+                  {checkingDocsStatus ? 'CHECKING...' : docsServerOnline ? 'ONLINE' : 'OFFLINE'}
+                </Text>
+              </View>
+              <Text style={styles.docsStatusUrl}>{DOCS_URL}</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.docsOpenBtn}
+            onPress={openDocumentation}
+            disabled={checkingDocsStatus}
+          >
+            <Text style={styles.docsOpenBtnText}>
+              {checkingDocsStatus ? '[ CONNECTING... ]' : '[ OPEN_DOCUMENTATION ]'}
+            </Text>
+          </TouchableOpacity>
+
+          <View style={styles.docsInfoBox}>
+            <Text style={styles.docsInfoTitle}>[ LOCAL_DEVELOPMENT ]</Text>
+            <Text style={styles.docsInfoText}>mkdocs serve</Text>
+            <Text style={[styles.docsInfoTitle, { marginTop: 8 }]}>[ PRODUCTION ]</Text>
+            <Text style={styles.docsInfoText}>docker run -p 8000:8080 nginx</Text>
+          </View>
+        </View>
 
         {/* SYSTEM STATUS */}
         <View style={styles.section}>
@@ -699,5 +773,90 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontSize: 11,
     letterSpacing: 1,
+  },
+
+  /* Documentation Section */
+  docsStatusCard: {
+    backgroundColor: '#0A0A0A',
+    borderWidth: 2,
+    borderColor: '#1a1a1a',
+    borderRadius: 0,
+    padding: 16,
+    marginBottom: 12,
+  },
+  docsStatusRow: {
+    flexDirection: 'column',
+    gap: 8,
+  },
+  docsStatusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 0,
+    borderWidth: 2,
+    borderColor: '#1a1a1a',
+  },
+  statusDotOnline: {
+    backgroundColor: '#00FF66',
+    borderColor: '#00FF66',
+  },
+  statusDotOffline: {
+    backgroundColor: '#2C2C2C',
+    borderColor: '#FF2C55',
+  },
+  docsStatusText: {
+    color: '#00FF66',
+    fontWeight: '900',
+    fontSize: 11,
+    letterSpacing: 1,
+    fontFamily: 'Courier',
+  },
+  docsStatusUrl: {
+    color: '#888',
+    fontFamily: 'Courier',
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  docsOpenBtn: {
+    backgroundColor: '#0A0A0A',
+    borderWidth: 2,
+    borderColor: '#00FF66',
+    borderRadius: 0,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  docsOpenBtnText: {
+    color: '#00FF66',
+    fontWeight: '900',
+    fontSize: 11,
+    letterSpacing: 2,
+    fontFamily: 'Courier New',
+  },
+  docsInfoBox: {
+    backgroundColor: '#0A0A0A',
+    borderWidth: 2,
+    borderColor: '#1a1a1a',
+    borderRadius: 0,
+    padding: 12,
+  },
+  docsInfoTitle: {
+    color: '#00FF66',
+    fontWeight: '900',
+    fontSize: 10,
+    letterSpacing: 1,
+    fontFamily: 'Courier',
+    marginBottom: 4,
+  },
+  docsInfoText: {
+    color: '#888',
+    fontFamily: 'Courier',
+    fontSize: 10,
+    letterSpacing: 0.5,
   },
 });
