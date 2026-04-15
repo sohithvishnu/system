@@ -57,8 +57,9 @@ app.add_middleware(
 )
 
 # --- INITIALIZE PERSISTENCE MEMORY ---
-chroma_client = chromadb.PersistentClient(path="./memory_db")
-memory_collection = chroma_client.get_or_create_collection(name="workspace_memory")
+chroma_client = chromadb.PersistentClient(path="./chroma_data")
+workspace_memory = chroma_client.get_or_create_collection(name="workspace_memory")
+system_memory = chroma_client.get_or_create_collection(name="system_memory")
 
 def hash_password(password: str) -> str:
     """Hash password using SHA-256"""
@@ -93,6 +94,8 @@ def init_db():
             dueDate TEXT,
             priority TEXT,
             status TEXT DEFAULT 'TODO',
+            entity_type TEXT DEFAULT 'TO_DO',
+            project_id TEXT,
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     """)
@@ -104,6 +107,7 @@ def init_db():
             sender TEXT,
             task_id INTEGER,
             session_id TEXT DEFAULT 'default-session',
+            project_id TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
@@ -116,8 +120,24 @@ def init_db():
         if 'session_id' not in columns:
             print("[DB] Migrating chat_history table: Adding session_id column")
             cursor.execute("ALTER TABLE chat_history ADD COLUMN session_id TEXT DEFAULT 'default-session'")
+        if 'project_id' not in columns:
+            print("[DB] Migrating chat_history table: Adding project_id column")
+            cursor.execute("ALTER TABLE chat_history ADD COLUMN project_id TEXT")
     except Exception as e:
-        print(f"[DB] Session migration check failed: {e}")
+        print(f"[DB] Chat history migration check failed: {e}")
+    
+    # Migrate: Add entity_type and project_id columns to tickets if they don't exist
+    try:
+        cursor.execute("PRAGMA table_info(tickets)")
+        columns = [column[1] for column in cursor.fetchall()]
+        if 'entity_type' not in columns:
+            print("[DB] Migrating tickets table: Adding entity_type column")
+            cursor.execute("ALTER TABLE tickets ADD COLUMN entity_type TEXT DEFAULT 'TO_DO'")
+        if 'project_id' not in columns:
+            print("[DB] Migrating tickets table: Adding project_id column")
+            cursor.execute("ALTER TABLE tickets ADD COLUMN project_id TEXT")
+    except Exception as e:
+        print(f"[DB] Tickets migration check failed: {e}")
     
     # Create custom prompts table
     cursor.execute("""
@@ -152,6 +172,18 @@ def init_db():
             date TEXT,
             summary TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+    """)
+    
+    # Create projects table for discrete project organization and routing
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS projects (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            name TEXT UNIQUE,
+            description TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     """)
@@ -206,8 +238,9 @@ class TicketCreate(BaseModel):
     priority: Literal["LOW", "MEDIUM", "HIGH"] = Field(default="MEDIUM", description="Priority level")
     status: Literal["TODO", "IN_PROGRESS", "DONE"] = Field(default="TODO", description="Initial status")
     dueDate: str = Field(description="Due datetime in YYYY-MM-DD HH:MM format")
+    entity_type: Literal["TO_DO", "DEADLINE", "MEETING", "REST"] = Field(default="TO_DO", description="Entity type classification")
+    project_id: Optional[str] = Field(default=None, description="Optional project ID for context association")
     user_id: str = Field(..., description="User ID for authorization")
-    project_id: Optional[str] = None
     
     @validator('dueDate')
     def validate_due_date(cls, v):
@@ -233,6 +266,8 @@ class TicketUpdate(BaseModel):
     priority: Optional[Literal["LOW", "MEDIUM", "HIGH"]] = None
     status: Optional[Literal["TODO", "IN_PROGRESS", "DONE"]] = None
     dueDate: Optional[str] = None
+    entity_type: Optional[Literal["TO_DO", "DEADLINE", "MEETING", "REST"]] = None
+    project_id: Optional[str] = None
     user_id: str = Field(..., description="User ID for authorization")
     
     @validator('dueDate')
@@ -362,6 +397,7 @@ class ChatMessage(BaseModel):
     model: Optional[str] = None  # AI model selection, defaults to None (backend will use default)
     session_id: Optional[str] = "default-session"  # Chat thread/session ID for memory isolation
     system_directive: Optional[str] = None  # Custom system prompt from frontend settings
+    project_id: Optional[str] = None  # Project context for routing and organization
 
 class EODJournalRequest(BaseModel):
     """Request body for end-of-day journal summarization"""
@@ -609,16 +645,17 @@ async def create_ticket(ticket: TicketCreate):
         conn = sqlite3.connect("workspace.db")
         cursor = conn.cursor()
         
-        # Use validated model data
+        # Use validated model data, including new fields
         cursor.execute("""
-            INSERT INTO tickets (id, user_id, title, priority, status, dueDate)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (ticket_id, ticket.user_id, ticket.title, ticket.priority, ticket.status, ticket.dueDate))
+            INSERT INTO tickets (user_id, title, priority, status, dueDate, entity_type, project_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (ticket.user_id, ticket.title, ticket.priority, ticket.status, ticket.dueDate, 
+              ticket.entity_type, ticket.project_id))
         
         conn.commit()
         conn.close()
         
-        print(f"[CREATE_TICKET] User {ticket.user_id}: {ticket.title} ({ticket.priority}, {ticket.dueDate})")
+        print(f"[CREATE_TICKET] User {ticket.user_id}: {ticket.title} ({ticket.priority}, {ticket.dueDate}) [{ticket.entity_type}]")
         return {"success": True, "message": "Ticket created", "ticket_id": ticket_id}
     except Exception as e:
         print(f"[CREATE_TICKET] Error: {e}")
@@ -636,9 +673,12 @@ async def update_ticket(ticket_id: int, data: TicketUpdate):
             SET title = COALESCE(?, title), 
                 dueDate = COALESCE(?, dueDate), 
                 priority = COALESCE(?, priority), 
-                status = COALESCE(?, status)
+                status = COALESCE(?, status),
+                entity_type = COALESCE(?, entity_type),
+                project_id = COALESCE(?, project_id)
             WHERE id = ? AND user_id = ?
-        """, (data.title, data.dueDate, data.priority, data.status, ticket_id, data.user_id))
+        """, (data.title, data.dueDate, data.priority, data.status, data.entity_type, 
+              data.project_id, ticket_id, data.user_id))
         
         conn.commit()
         conn.close()
@@ -737,10 +777,18 @@ async def chat_with_ollama(chat: ChatMessage):
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     
-    # A. Fetch Current Incomplete Tasks
-    cursor.execute("SELECT title, dueDate FROM tickets WHERE user_id = ? AND status != 'DONE'", (chat.user_id,))
+    # A. Fetch Current Incomplete Tasks with IDs and entity types for AI state injection
+    cursor.execute("SELECT id, title, dueDate, entity_type FROM tickets WHERE user_id = ? AND status != 'DONE'", (chat.user_id,))
     current_tasks = cursor.fetchall()
     schedule_text = "\n".join([f"- {t[0]} (Due: {t[1]})" for t in current_tasks]) or "No active tasks."
+    
+    # **STATE INJECTION: Format active entities for AI's "eyes"**
+    active_entities_text = "[ACTIVE SYSTEM ENTITIES]\n"
+    if current_tasks:
+        for task_id, title, due_date, entity_type in current_tasks:
+            active_entities_text += f"(ID: {task_id}) {entity_type or 'TO_DO'}: {title} @ {due_date}\n"
+    else:
+        active_entities_text += "No active entities.\n"
     
     # B. TIER 1: Fetch Immediate Context (Last 15 messages from current session)
     cursor.execute("""
@@ -772,7 +820,7 @@ async def chat_with_ollama(chat: ChatMessage):
 
     # D. TIER 3: Fetch Long-Term Archives (ChromaDB - outside 7-day window)
     try:
-        results = memory_collection.query(query_texts=[chat.message], n_results=5)
+        results = workspace_memory.query(query_texts=[chat.message], n_results=5)
         long_term_docs = []
         if results and results['documents']:
             for i, metadata in enumerate(results['metadatas'][0] if results['metadatas'] else []):
@@ -786,6 +834,24 @@ async def chat_with_ollama(chat: ChatMessage):
     except Exception as e:
         print(f"ChromaDB query error: {e}")
         recalled_archives = "[RECALLED_ARCHIVES]\nNo archived memories available."
+    
+    # E. RAG RETRIEVAL (Step A): Query system_memory for top 3 semantically similar past interactions
+    relevant_context = ""
+    try:
+        if system_memory.count() > 0:  # Only query if collection has data
+            rag_results = system_memory.query(query_texts=[chat.message], n_results=3)
+            rag_docs = []
+            if rag_results and rag_results['documents']:
+                for i, metadata in enumerate(rag_results['metadatas'][0] if rag_results['metadatas'] else []):
+                    if metadata.get('user_id') == chat.user_id:
+                        rag_docs.append(rag_results['documents'][0][i])
+                        if len(rag_docs) >= 3:
+                            break
+            
+            if rag_docs:
+                relevant_context = "[RELEVANT_PAST_CONTEXT]\n" + "\n".join([f"- {doc}" for doc in rag_docs]) + "\n"
+    except Exception as e:
+        print(f"[RAG_RETRIEVAL_ERROR] {e}")
 
     conn.close()
 
@@ -798,12 +864,14 @@ async def chat_with_ollama(chat: ChatMessage):
     
     final_system_prompt = base_prompt
     
-    # E. Build Context for LLM (With High-Precision Time Context)
+    # F. Build Context for LLM (With High-Precision Time Context + RAG)
     context = f"""{final_system_prompt}
 
 [SYSTEM CONTEXT]
 Current Time: {current_datetime_str}
 Important: Use this time to calculate tomorrow, next week, or specific dates/times accurately.
+
+{relevant_context}
 
 IMMEDIATE_SESSION_CONTEXT:
 {immediate_context_str}
@@ -812,6 +880,8 @@ IMMEDIATE_SESSION_CONTEXT:
 {weekly_context}
 
 {recalled_archives}
+
+{active_entities_text}
 
 CURRENT_TASKS (Incomplete):
 {schedule_text}
@@ -822,6 +892,10 @@ USER_MESSAGE: {chat.message}
 """
     
     try:
+        # Initialize tracking variables for RAG storage
+        task = None
+        new_task_id = None
+        
         # Use provided model or default from config
         model_name = chat.model or DEFAULT_MODEL
         
@@ -908,7 +982,141 @@ USER_MESSAGE: {chat.message}
                 print(f"[TASK_EXTRACTION_ERROR] Failed to parse task: {str(e)}")
                 continue
         
-        # F2. ROBUST MEMORY EXTRACTION - Look for <MEMORY>...</MEMORY> XML blocks
+        # **F1. NEW: CREATE_ENTITY EXTRACTION - Look for <CREATE_ENTITY>...</CREATE_ENTITY> XML blocks**
+        for create_match in re.finditer(r'<CREATE_ENTITY>\s*(.*?)\s*</CREATE_ENTITY>', cleaned_response, re.DOTALL):
+            try:
+                entity_content = create_match.group(1).strip()
+                parts = [part.strip() for part in entity_content.split('|')]
+                
+                if len(parts) < 3:
+                    print(f"[CREATE_ENTITY_ERROR] Insufficient parts: {parts}")
+                    continue
+                
+                entity_type = parts[0].upper()  # TO_DO, DEADLINE, MEETING, REST
+                title = parts[1]
+                priority = parts[2].upper()
+                due_date = parts[3] if len(parts) > 3 else None
+                project_name = parts[4].strip() if len(parts) > 4 else None
+                
+                # Validate entity_type
+                if entity_type not in ["TO_DO", "DEADLINE", "MEETING", "REST"]:
+                    entity_type = "TO_DO"
+                
+                # Handle date parsing (similar to TASK parsing above)
+                if due_date:
+                    due_date_upper = due_date.upper().strip()
+                    if due_date_upper.startswith("TOMORROW"):
+                        time_suffix = due_date[8:].strip() if len(due_date) > 8 else ""
+                        base_date = (datetime.now(ZoneInfo(TIMEZONE)) + timedelta(days=1)).strftime("%Y-%m-%d")
+                        due_date = base_date + (" " + time_suffix if time_suffix else " 00:00")
+                    elif due_date_upper.startswith("TODAY"):
+                        time_suffix = due_date[5:].strip() if len(due_date) > 5 else ""
+                        base_date = datetime.now(ZoneInfo(TIMEZONE)).strftime("%Y-%m-%d")
+                        due_date = base_date + (" " + time_suffix if time_suffix else " 00:00")
+                    elif len(due_date.strip()) == 10 and due_date.count('-') == 2:
+                        due_date = due_date.strip() + " 00:00"
+                else:
+                    due_date = datetime.now(ZoneInfo(TIMEZONE)).strftime("%Y-%m-%d 00:00")
+                
+                # Validate through Pydantic
+                validated_ticket = sanitize_ai_ticket(title, priority, due_date, chat.user_id)
+                
+                # Insert with entity_type and project_id
+                conn = sqlite3.connect(DATABASE_PATH)
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO tickets (user_id, title, dueDate, priority, status, entity_type, project_id) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (chat.user_id, validated_ticket.title, validated_ticket.dueDate, validated_ticket.priority, 
+                      validated_ticket.status, entity_type, project_name))
+                new_task_id = cursor.lastrowid
+                conn.commit()
+                conn.close()
+                
+                print(f"[CREATE_ENTITY] User {chat.user_id}: {entity_type} '{title}' created (ID: {new_task_id})")
+                break  # Process first CREATE_ENTITY
+                
+            except Exception as e:
+                print(f"[CREATE_ENTITY_ERROR] {str(e)}")
+                continue
+        
+        # **F2. NEW: UPDATE_ENTITY EXTRACTION - Look for <UPDATE_ENTITY>...</UPDATE_ENTITY> XML blocks**
+        for update_match in re.finditer(r'<UPDATE_ENTITY>\s*(.*?)\s*</UPDATE_ENTITY>', cleaned_response, re.DOTALL):
+            try:
+                update_content = update_match.group(1).strip()
+                parts = [part.strip() for part in update_content.split('|')]
+                
+                if len(parts) < 2:
+                    print(f"[UPDATE_ENTITY_ERROR] Insufficient parts: {parts}")
+                    continue
+                
+                entity_id = int(parts[0])
+                action = parts[1].upper()  # COMPLETE or EDIT
+                
+                conn = sqlite3.connect(DATABASE_PATH)
+                cursor = conn.cursor()
+                
+                # Verify ownership
+                cursor.execute("SELECT user_id FROM tickets WHERE id = ?", (entity_id,))
+                result = cursor.fetchone()
+                if not result or result[0] != chat.user_id:
+                    print(f"[UPDATE_ENTITY_ERROR] Unauthorized: User {chat.user_id} cannot update entity {entity_id}")
+                    conn.close()
+                    continue
+                
+                if action == "COMPLETE":
+                    cursor.execute("UPDATE tickets SET status = 'DONE' WHERE id = ?", (entity_id,))
+                    print(f"[UPDATE_ENTITY] Entity {entity_id} marked as DONE")
+                elif action == "EDIT" and len(parts) >= 3:
+                    new_due_date = parts[2].strip()
+                    # Parse date if needed
+                    if new_due_date.upper().startswith("TOMORROW"):
+                        time_suffix = new_due_date[8:].strip() if len(new_due_date) > 8 else ""
+                        base_date = (datetime.now(ZoneInfo(TIMEZONE)) + timedelta(days=1)).strftime("%Y-%m-%d")
+                        new_due_date = base_date + (" " + time_suffix if time_suffix else " 00:00")
+                    elif new_due_date.upper().startswith("TODAY"):
+                        time_suffix = new_due_date[5:].strip() if len(new_due_date) > 5 else ""
+                        base_date = datetime.now(ZoneInfo(TIMEZONE)).strftime("%Y-%m-%d")
+                        new_due_date = base_date + (" " + time_suffix if time_suffix else " 00:00")
+                    elif len(new_due_date.strip()) == 10 and new_due_date.count('-') == 2:
+                        new_due_date = new_due_date.strip() + " 00:00"
+                    cursor.execute("UPDATE tickets SET dueDate = ? WHERE id = ?", (new_due_date, entity_id))
+                    print(f"[UPDATE_ENTITY] Entity {entity_id} updated to {new_due_date}")
+                
+                conn.commit()
+                conn.close()
+                
+            except Exception as e:
+                print(f"[UPDATE_ENTITY_ERROR] {str(e)}")
+                continue
+        
+        # **F3. NEW: DELETE_ENTITY EXTRACTION - Look for <DELETE_ENTITY>...</DELETE_ENTITY> XML blocks**
+        for delete_match in re.finditer(r'<DELETE_ENTITY>\s*(.*?)\s*</DELETE_ENTITY>', cleaned_response, re.DOTALL):
+            try:
+                entity_id = int(delete_match.group(1).strip())
+                
+                conn = sqlite3.connect(DATABASE_PATH)
+                cursor = conn.cursor()
+                
+                # Verify ownership
+                cursor.execute("SELECT user_id FROM tickets WHERE id = ?", (entity_id,))
+                result = cursor.fetchone()
+                if not result or result[0] != chat.user_id:
+                    print(f"[DELETE_ENTITY_ERROR] Unauthorized: User {chat.user_id} cannot delete entity {entity_id}")
+                    conn.close()
+                    continue
+                
+                cursor.execute("DELETE FROM tickets WHERE id = ?", (entity_id,))
+                conn.commit()
+                conn.close()
+                
+                print(f"[DELETE_ENTITY] Entity {entity_id} deleted for user {chat.user_id}")
+                
+            except Exception as e:
+                print(f"[DELETE_ENTITY_ERROR] {str(e)}")
+                continue
+        
+        # F4. ROBUST MEMORY EXTRACTION - Look for <MEMORY>...</MEMORY> XML blocks
         for memory_match in re.finditer(r'<MEMORY>\s*(.*?)\s*</MEMORY>', cleaned_response, re.DOTALL):
             try:
                 memory_content = memory_match.group(1).strip()
@@ -953,25 +1161,41 @@ USER_MESSAGE: {chat.message}
         
         # G. CRUCIAL CLEANUP - Strip all XML tags from response before sending to frontend
         clean_response = re.sub(r'<TASK>\s*.*?\s*</TASK>', '', cleaned_response, flags=re.DOTALL).strip()
+        clean_response = re.sub(r'<CREATE_ENTITY>\s*.*?\s*</CREATE_ENTITY>', '', clean_response, flags=re.DOTALL).strip()
+        clean_response = re.sub(r'<UPDATE_ENTITY>\s*.*?\s*</UPDATE_ENTITY>', '', clean_response, flags=re.DOTALL).strip()
+        clean_response = re.sub(r'<DELETE_ENTITY>\s*.*?\s*</DELETE_ENTITY>', '', clean_response, flags=re.DOTALL).strip()
         clean_response = re.sub(r'<MEMORY>\s*.*?\s*</MEMORY>', '', clean_response, flags=re.DOTALL).strip()
         
-        # H. PERSISTENCE - Save messages to history
+        # H. RAG STORAGE (Step C): Store the user message + AI response pair to system_memory
+        try:
+            rag_doc_id = str(uuid.uuid4())
+            pair_text = f"USER: {chat.message}\nAI: {clean_response}"
+            system_memory.add(
+                documents=[pair_text],
+                metadatas=[{"user_id": chat.user_id, "timestamp": current_datetime_str, "project_id": chat.project_id or "default"}],
+                ids=[rag_doc_id]
+            )
+            print(f"[RAG_STORED] Interaction pair stored to system_memory (ID: {rag_doc_id})")
+        except Exception as e:
+            print(f"[RAG_STORAGE_ERROR] Failed to store interaction pair: {e}")
+        
+        # I. PERSISTENCE - Save messages to history
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         user_msg_id = str(uuid.uuid4())
-        cursor.execute("INSERT INTO chat_history (id, user_id, text, sender, session_id) VALUES (?, ?, ?, ?, ?)", 
-                       (user_msg_id, chat.user_id, chat.message, 'user', chat.session_id))
+        cursor.execute("INSERT INTO chat_history (id, user_id, text, sender, session_id, project_id) VALUES (?, ?, ?, ?, ?, ?)", 
+                       (user_msg_id, chat.user_id, chat.message, 'user', chat.session_id, chat.project_id or None))
         
         ai_msg_id = str(uuid.uuid4())
-        cursor.execute("INSERT INTO chat_history (id, user_id, text, sender, task_id, session_id) VALUES (?, ?, ?, ?, ?, ?)", 
-                       (ai_msg_id, chat.user_id, clean_response, 'ai', new_task_id, chat.session_id))
+        cursor.execute("INSERT INTO chat_history (id, user_id, text, sender, task_id, session_id, project_id) VALUES (?, ?, ?, ?, ?, ?, ?)", 
+                       (ai_msg_id, chat.user_id, clean_response, 'ai', new_task_id, chat.session_id, chat.project_id or None))
         
         conn.commit()
         conn.close()
 
-        # I. Update ChromaDB with user message
-        memory_collection.add(
+        # J. Update workspace ChromaDB with user message (for archive)
+        workspace_memory.add(
             documents=[chat.message], 
             metadatas=[{"user_id": chat.user_id, "session_id": chat.session_id, "time": current_time_str}], 
             ids=[user_msg_id]
@@ -1366,6 +1590,173 @@ async def get_journal_history(user_id: str, limit: int = Query(30, ge=1, le=365)
     except Exception as e:
         print(f"[GET_JOURNAL_HISTORY] Error: {e}")
         return {"success": False, "error": "Failed to fetch journal history"}
+
+# ========== NETWORK TOPOLOGY ENDPOINT (Force-Directed Graph) ==========
+
+@app.get("/api/network/topology")
+async def get_network_topology(user_id: str = Query(..., description="User ID for filtering facts")):
+    """
+    Query identity_matrix and build a force-directed graph with nodes and links.
+    
+    Topology Structure:
+    - Core Node: USER (color: #00FF66, group: 1, size: 20)
+    - Category Nodes: GOALS, PREFERENCES, FACTS (linked to USER)
+    - Person Nodes: For each PERSON memory, create a node (color: #FF2C55)
+    - Fact Nodes: For each memory, create a fact node
+      - Standard facts link to category node
+      - Person facts link to person node
+    
+    Returns: {"nodes": [...], "links": [...]}
+    """
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Fetch all identity matrix facts for the user
+        cursor.execute("""
+            SELECT id, category, fact FROM identity_matrix 
+            WHERE user_id = ? 
+            ORDER BY category, timestamp DESC
+        """, (user_id,))
+        
+        facts = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        # Initialize nodes and links lists
+        nodes = []
+        links = []
+        node_ids = set()  # Track unique node IDs to avoid duplicates
+        
+        # 1. Create core USER node
+        user_node = {
+            "id": "USER",
+            "group": 1,
+            "val": 20,
+            "color": "#00FF66",
+            "label": "USER"
+        }
+        nodes.append(user_node)
+        node_ids.add("USER")
+        
+        # 2. Create category nodes and link them to USER
+        categories_to_link = ["GOALS", "PREFERENCES", "FACTS"]
+        for category in categories_to_link:
+            category_node = {
+                "id": category,
+                "group": 2,
+                "val": 15,
+                "color": "#FFFFFF",
+                "label": category
+            }
+            if category not in node_ids:
+                nodes.append(category_node)
+                node_ids.add(category)
+                # Link category to USER
+                links.append({
+                    "source": "USER",
+                    "target": category,
+                    "value": 1
+                })
+        
+        # 3. Process facts and create appropriate nodes
+        person_nodes = {}  # Track person nodes by name
+        
+        for fact in facts:
+            fact_id = fact['id']
+            category = fact['category']
+            fact_text = fact['fact']
+            
+            if category == 'PERSON':
+                # Parse "PersonName :: Fact" format
+                parts = fact_text.split('::')
+                if len(parts) == 2:
+                    person_name = parts[0].strip()
+                    specific_fact = parts[1].strip()
+                    
+                    # Create person node if not already created
+                    if person_name not in person_nodes:
+                        person_node_id = f"PERSON_{person_name.replace(' ', '_')}"
+                        person_node = {
+                            "id": person_node_id,
+                            "group": 3,
+                            "val": 12,
+                            "color": "#FF2C55",
+                            "label": person_name
+                        }
+                        if person_node_id not in node_ids:
+                            nodes.append(person_node)
+                            node_ids.add(person_node_id)
+                            # Link person node to USER
+                            links.append({
+                                "source": "USER",
+                                "target": person_node_id,
+                                "value": 1
+                            })
+                        person_nodes[person_name] = person_node_id
+                    
+                    # Create fact node and link it to person node
+                    fact_node_id = fact_id
+                    fact_node = {
+                        "id": fact_node_id,
+                        "group": 4,
+                        "val": 8,
+                        "color": "#1a1a1a",
+                        "label": specific_fact[:30] + "..." if len(specific_fact) > 30 else specific_fact
+                    }
+                    if fact_node_id not in node_ids:
+                        nodes.append(fact_node)
+                        node_ids.add(fact_node_id)
+                        # Link fact to person node
+                        links.append({
+                            "source": person_nodes[person_name],
+                            "target": fact_node_id,
+                            "value": 1
+                        })
+            else:
+                # Standard memory (GOALS, PREFERENCES, FACTS, etc.)
+                # Determine category mapping for linking
+                category_node_target = None
+                if category == 'GOAL':
+                    category_node_target = 'GOALS'
+                elif category == 'PREFERENCE':
+                    category_node_target = 'PREFERENCES'
+                elif category in ['FACT', 'IDENTITY']:
+                    category_node_target = 'FACTS'
+                
+                # Create fact node
+                fact_node_id = fact_id
+                fact_node = {
+                    "id": fact_node_id,
+                    "group": 4,
+                    "val": 8,
+                    "color": "#1a1a1a",
+                    "label": fact_text[:30] + "..." if len(fact_text) > 30 else fact_text
+                }
+                if fact_node_id not in node_ids:
+                    nodes.append(fact_node)
+                    node_ids.add(fact_node_id)
+                    
+                    # Link to category node if exists
+                    if category_node_target and category_node_target in node_ids:
+                        links.append({
+                            "source": category_node_target,
+                            "target": fact_node_id,
+                            "value": 1
+                        })
+        
+        print(f"[TOPOLOGY_GENERATED] User {user_id}: {len(nodes)} nodes, {len(links)} links")
+        return {
+            "success": True,
+            "nodes": nodes,
+            "links": links,
+            "total_nodes": len(nodes),
+            "total_links": len(links)
+        }
+        
+    except Exception as e:
+        print(f"[ERROR_TOPOLOGY] {str(e)}")
+        return {"success": False, "error": str(e)}
 
 if __name__ == "__main__":
     # Auto-update Tailscale IP before starting

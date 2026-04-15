@@ -18,10 +18,13 @@ export default function SideNavigationLayout() {
 
   const navItems = [
     { name: 'chat', icon: 'terminal-outline', label: 'SYSTEM' },
+    { name: 'lifeline', icon: 'time-outline', label: 'LIFELINE' },
     { name: 'board', icon: 'grid-outline', label: 'BOARD' },
+    { name: 'projects', icon: 'folder-outline', label: 'PROJECTS' },
     { name: 'calendar', icon: 'flash-outline', label: 'AGENDA' },
     { name: 'profile', icon: 'id-card-outline', label: 'USER' },
-    { name: 'memory', icon: 'brain-outline', label: 'MEMORY' },
+    { name: 'memory', icon: 'bulb-outline', label: 'MEMORY' },
+    { name: 'topology', icon: 'git-network', label: 'TOPOLOGY' },
     { name: 'journal', icon: 'book-outline', label: 'EOD_LOGS' },
     { name: 'settings', icon: 'hardware-chip-outline', label: 'CONFIG' },
   ];

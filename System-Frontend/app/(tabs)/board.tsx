@@ -3,13 +3,14 @@ import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, Act
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
-import { COLORS, BOLD_STYLES } from '../../constants/theme';
+import { COLORS, BOLD_STYLES, ENTITY_COLORS } from '../../constants/theme';
 import { BACKEND_URL } from '../../constants/config';
 import { formatDateTime, getDateTimeHint } from '../../utils/dateTimeFormatter';
 
-type Ticket = { id: string; title: string; dueDate: string; priority: string; status: string };
+type Ticket = { id: string; title: string; dueDate: string; priority: string; status: string; entity_type?: string; project_id?: string };
 
 const STATUS_FLOW = ['TODO', 'IN_PROGRESS', 'DONE'];
+const ENTITY_TYPES = ['TO_DO', 'DEADLINE', 'MEETING', 'REST'];
 
 export default function BoardScreen() {
   const { user, logout } = useAuth();
@@ -21,6 +22,8 @@ export default function BoardScreen() {
   const [editTitle, setEditTitle] = useState('');
   const [editPriority, setEditPriority] = useState('');
   const [editDueDate, setEditDueDate] = useState('');
+  const [editEntityType, setEditEntityType] = useState('TO_DO');
+  const [editProjectId, setEditProjectId] = useState('');
   const [dateTimeError, setDateTimeError] = useState('');
   
   // Responsive logic
@@ -121,6 +124,8 @@ export default function BoardScreen() {
           title: editTitle,
           priority: editPriority.toUpperCase(),
           dueDate: formatted,
+          entity_type: editEntityType,
+          project_id: editProjectId || null,
           user_id: user?.id
         }),
       });
@@ -184,6 +189,8 @@ export default function BoardScreen() {
     setEditTitle(ticket.title);
     setEditPriority(ticket.priority);
     setEditDueDate(ticket.dueDate);
+    setEditEntityType(ticket.entity_type || 'TO_DO');
+    setEditProjectId(ticket.project_id || '');
     setDateTimeError('');
   };
 
@@ -192,6 +199,8 @@ export default function BoardScreen() {
     setEditTitle('');
     setEditPriority('');
     setEditDueDate('');
+    setEditEntityType('TO_DO');
+    setEditProjectId('');
     setDateTimeError('');
   };
 
@@ -383,6 +392,42 @@ export default function BoardScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+              
+              {/* Entity Type Selector */}
+              <Text style={styles.inputLabel}>ENTITY_TYPE</Text>
+              <View style={styles.entityTypeSelector}>
+                {ENTITY_TYPES.map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.entityTypeBtn,
+                      editEntityType === type && { 
+                        borderColor: ENTITY_COLORS[type],
+                        backgroundColor: ENTITY_COLORS[type] + '15'
+                      }
+                    ]}
+                    onPress={() => setEditEntityType(type)}
+                  >
+                    <Text style={[
+                      styles.entityTypeText,
+                      editEntityType === type && { color: ENTITY_COLORS[type] }
+                    ]}>
+                      [ {type} ]
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              
+              {/* Project ID Input */}
+              <Text style={styles.inputLabel}>PROJECT_ID (Optional)</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="[ PROJECT_ID_OPTIONAL ]"
+                placeholderTextColor="#555"
+                value={editProjectId}
+                onChangeText={setEditProjectId}
+                selectionColor="#00FF66"
+              />
               
               {/* Date & Time Text Input */}
               <Text style={styles.inputLabel}>DUE_DATE_TIME</Text>
@@ -640,6 +685,30 @@ const styles = StyleSheet.create({
   },
   prioritySelectTextActive: {
     color: '#000',
+  },
+  entityTypeSelector: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+    flexWrap: 'wrap',
+  },
+  entityTypeBtn: {
+    flex: 1,
+    minWidth: '22%',
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#1a1a1a',
+    borderRadius: 0,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  entityTypeText: {
+    color: '#FFF',
+    fontWeight: '900',
+    fontSize: 10,
+    letterSpacing: 1,
   },
   cancelText: {
     color: '#666666',
