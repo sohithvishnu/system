@@ -11,10 +11,8 @@ This is the **definitive documentation** for the local-first AI Personal OS. All
 | Section | Purpose |
 |---------|---------|
 | [System Overview](overview/quickstart.md) | Get started in 5 minutes |
-| [Architecture Docs](architecture/semantic_xml.md) | Understand core design patterns |
-| [Memory Systems](memory/neural_matrix.md) | Learn about encrypted storage + retrieval |
+| [Architecture Docs](overview/architecture.md) | Understand core design patterns |
 | [API Reference](api/auth.md) | Complete endpoint documentation |
-| [Friday Protocol](protocol/overview.md) | Message format + semantics |
 | [Operations](ops/docker.md) | Deployment + monitoring |
 
 ---

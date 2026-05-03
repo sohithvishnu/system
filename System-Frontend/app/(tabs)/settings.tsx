@@ -175,8 +175,26 @@ export default function SettingsScreen() {
   const checkDocsStatus = useCallback(async () => {
     setCheckingDocsStatus(true);
     try {
-      const response = await fetch(DOCS_URL, { method: 'HEAD', timeout: 3000 });
-      setDocsServerOnline(response.status < 500);
+      // Use AbortController for timeout since React Native fetch doesn't support timeout option
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      
+      try {
+        const response = await fetch(DOCS_URL, { 
+          method: 'HEAD',
+          signal: controller.signal 
+        });
+        clearTimeout(timeoutId);
+        setDocsServerOnline(response.status < 500);
+      } catch (e: any) {
+        clearTimeout(timeoutId);
+        if (e.name === 'AbortError') {
+          // Timeout occurred
+          setDocsServerOnline(false);
+        } else {
+          throw e;
+        }
+      }
     } catch (e: any) {
       console.error("Docs server check failed", e);
       setDocsServerOnline(false);

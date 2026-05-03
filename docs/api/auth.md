@@ -131,4 +131,4 @@ def derive_user_key(password: str, email: str) -> bytes:
 
 ---
 
-**See also:** [Security Model](../security/encryption.md) | [Threat Model](../security/threat_model.md)
+**See also:** [Architecture](../overview/architecture.md) | [Quick Start](../overview/quickstart.md)

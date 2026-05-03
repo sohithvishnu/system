@@ -288,9 +288,9 @@ Backups are handled by separate `infrastructure/backup.sh` script.
 ./infrastructure/backup.sh
 
 # Automated (via cron)
-# See: [Backup Guide](backup.md)
+# See infrastructure/backup.sh for details
 ```
 
 ---
 
-**See also:** [Backup & Recovery](backup.md) | [Troubleshooting](troubleshooting.md) | [Monitoring](monitoring.md)
+**See also:** [Quick Start](../overview/quickstart.md) | [Architecture](../overview/architecture.md)

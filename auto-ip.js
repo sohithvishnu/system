@@ -70,10 +70,16 @@ try {
             `TAILSCALE_IP = "${ip}"`
         );
         
-        // Update OLLAMA_ENDPOINT to use Tailscale IP
+        // Update TAILSCALE_IP
         configContent = configContent.replace(
-            /OLLAMA_ENDPOINT = f?"http:\/\/[^"]*:11434\/api\/generate"/,
-            `OLLAMA_ENDPOINT = f"http://{TAILSCALE_IP}:11434/api/generate"`
+            /TAILSCALE_IP = os\.getenv\("TAILSCALE_IP", "[^"]*"\)/,
+            `TAILSCALE_IP = os.getenv("TAILSCALE_IP", "${ip}")`
+        );
+        
+        // Update OLLAMA_HOST to use Tailscale IP
+        configContent = configContent.replace(
+            /OLLAMA_HOST = os\.getenv\("OLLAMA_HOST", f?"http:\/\/[^"]*:11434"\)/,
+            `OLLAMA_HOST = os.getenv("OLLAMA_HOST", f"http://${ip}:11434")`
         );
         
         fs.writeFileSync(backendConfigPath, configContent, 'utf8');

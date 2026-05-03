@@ -7,18 +7,22 @@ import hashlib
 import re
 import sys
 import asyncio
+import traceback
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, validator, ValidationError
+from pydantic import BaseModel, Field, field_validator, ValidationError
 from typing import Literal, Optional
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from config import (
+from backend.config import (
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_MODEL,
+    ACTIVE_MODEL,
     DATABASE_PATH,
     TIMEZONE,
+    OLLAMA_HOST,
+    OLLAMA_ENDPOINT,
 )
 from datetime_utils import parse_datetime, current_datetime_str
 
@@ -242,7 +246,7 @@ class TicketCreate(BaseModel):
     project_id: Optional[str] = Field(default=None, description="Optional project ID for context association")
     user_id: str = Field(..., description="User ID for authorization")
     
-    @validator('dueDate')
+    @field_validator('dueDate')
     def validate_due_date(cls, v):
         """Parse flexible date formats and normalize to YYYY-MM-DD HH:MM. Defaults to now if invalid."""
         if not v:
@@ -270,7 +274,7 @@ class TicketUpdate(BaseModel):
     project_id: Optional[str] = None
     user_id: str = Field(..., description="User ID for authorization")
     
-    @validator('dueDate')
+    @field_validator('dueDate')
     def validate_due_date(cls, v):
         """Parse flexible date formats and normalize to YYYY-MM-DD HH:MM. Returns None if input is None."""
         if v is None:
@@ -429,7 +433,7 @@ async def signup(credentials: AuthCredentials):
         return {"success": False, "error": "Password must be at least 6 characters"}
     
     try:
-        conn = sqlite3.connect("workspace.db")
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         cursor.execute("SELECT id FROM users WHERE username = ?", (credentials.username,))
@@ -452,14 +456,13 @@ async def signup(credentials: AuthCredentials):
         return {"success": True, "user_id": user_id, "username": credentials.username}
     except Exception as e:
         print(f"[SIGNUP] Error: {type(e).__name__}: {e}")
-        import traceback
         traceback.print_exc()
         return {"success": False, "error": "Sign up failed"}
 
 @app.post("/api/auth/login")
 async def login(credentials: AuthCredentials):
     try:
-        conn = sqlite3.connect("workspace.db")
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute("SELECT id, password FROM users WHERE username = ?", (credentials.username,))
         result = cursor.fetchone()
@@ -480,7 +483,7 @@ async def login(credentials: AuthCredentials):
 @app.post("/api/auth/session")
 async def start_session(auth: AuthRequest):
     """Deprecated: Use /api/auth/login instead"""
-    conn = sqlite3.connect("workspace.db")
+    conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM users WHERE username = ?", (auth.username,))
     user = cursor.fetchone()
@@ -506,7 +509,7 @@ async def change_password(data: ChangePasswordRequest):
         if len(data.new_password) < 6:
             return {"success": False, "error": "Password must be at least 6 characters"}
         
-        conn = sqlite3.connect("workspace.db")
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         # Get current password hash
@@ -537,7 +540,7 @@ async def change_password(data: ChangePasswordRequest):
 async def get_user_stats(user_id: str):
     """Get user workspace statistics"""
     try:
-        conn = sqlite3.connect("workspace.db")
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         # Total tasks
@@ -571,7 +574,7 @@ async def get_user_stats(user_id: str):
 async def get_chat_sessions(user_id: str):
     """Fetch all distinct session IDs for a user, ordered by most recent message"""
     try:
-        conn = sqlite3.connect("workspace.db")
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute("""
             SELECT session_id, MAX(timestamp) as last_message
@@ -592,7 +595,7 @@ async def get_chat_sessions(user_id: str):
 @app.get("/api/chat/history")
 async def get_chat_history(user_id: str, session_id: str = "default-session"):
     try:
-        conn = sqlite3.connect("workspace.db")
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         # LEFT JOIN with tickets to include task data in chat history, filtered by session_id
         cursor.execute("""
@@ -627,7 +630,7 @@ async def get_chat_history(user_id: str, session_id: str = "default-session"):
 @app.get("/api/tickets")
 async def get_tickets(user_id: str):
     try:
-        conn = sqlite3.connect("workspace.db")
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute("SELECT id, title, dueDate, priority, status FROM tickets WHERE user_id = ? ORDER BY dueDate ASC", (user_id,))
         rows = cursor.fetchall()
@@ -642,7 +645,7 @@ async def create_ticket(ticket: TicketCreate):
     """Create a new ticket with strict Pydantic validation"""
     try:
         ticket_id = str(uuid.uuid4())
-        conn = sqlite3.connect("workspace.db")
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         # Use validated model data, including new fields
@@ -664,7 +667,7 @@ async def create_ticket(ticket: TicketCreate):
 @app.put("/api/tickets/{ticket_id}")
 async def update_ticket(ticket_id: int, data: TicketUpdate):
     try:
-        conn = sqlite3.connect("workspace.db")
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         # We update only the fields provided, but strictly for the current user_id
@@ -691,7 +694,7 @@ async def update_ticket(ticket_id: int, data: TicketUpdate):
 async def delete_ticket(ticket_id: int, user_id: str):
     """Delete a ticket (user authorization required)"""
     try:
-        conn = sqlite3.connect("workspace.db")
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         # Verify ownership before deletion
@@ -715,7 +718,7 @@ async def delete_ticket(ticket_id: int, user_id: str):
 async def delete_session(session_id: str, user_id: str):
     """Delete a chat session and all associated messages (user authorization required)"""
     try:
-        conn = sqlite3.connect("workspace.db")
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         # Verify ownership by checking if any messages in this session belong to this user
@@ -741,7 +744,7 @@ async def delete_session(session_id: str, user_id: str):
 async def get_ai_models():
     """Fetch available Ollama models"""
     try:
-        response = requests.get("http://localhost:11434/api/tags", timeout=5)
+        response = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=5)
         response.raise_for_status()
         data = response.json()
         
@@ -900,13 +903,44 @@ USER_MESSAGE: {chat.message}
         model_name = chat.model or DEFAULT_MODEL
         
         # Send to Ollama WITHOUT forcing JSON format - just get natural text
-        response = requests.post("http://localhost:11434/api/generate", json={
-            "model": model_name,
-            "prompt": context,
-            "stream": False,
-            "format": None  # No forced format - natural text response
-        })
-        response.raise_for_status()
+        try:
+            response = requests.post(f"{OLLAMA_HOST}/api/generate", json={
+                "model": model_name,
+                "prompt": context,
+                "stream": False,
+                "format": None  # No forced format - natural text response
+            }, timeout=60)
+            
+            # Check for 404 - model not found
+            if response.status_code == 404:
+                error_detail = response.text
+                print(f"[OLLAMA_ERROR] 404 Model Not Found: {error_detail}")
+                print(f"[OLLAMA_ERROR] Attempted model: {model_name} at {OLLAMA_HOST}/api/generate")
+                print(f"[OLLAMA_HINT] Run: ollama pull {model_name}")
+                raise HTTPException(status_code=503, detail=f"Model '{model_name}' not found on Ollama. Run 'ollama pull {model_name}'")
+            
+            response.raise_for_status()
+            
+        except requests.exceptions.Timeout:
+            print(f"[OLLAMA_ERROR] Chat request timeout (60s) to {OLLAMA_HOST}")
+            raise HTTPException(status_code=504, detail="Ollama request timed out after 60 seconds")
+            
+        except requests.exceptions.ConnectionError as e:
+            print(f"[OLLAMA_ERROR] Cannot connect to Ollama at {OLLAMA_HOST}: {str(e)}")
+            raise HTTPException(status_code=503, detail=f"Cannot reach Ollama at {OLLAMA_HOST}. Is it running?")
+            
+        except requests.exceptions.HTTPError as e:
+            try:
+                error_json = response.json()
+                error_detail = error_json.get('error', error_json.get('message', str(error_json)))
+            except:
+                error_detail = response.text
+            print(f"[OLLAMA_ERROR] HTTP {response.status_code}: {error_detail}")
+            raise HTTPException(status_code=502, detail=f"Ollama error: {error_detail}")
+            
+        except requests.exceptions.RequestException as e:
+            print(f"[OLLAMA_ERROR] Request to {OLLAMA_HOST} failed: {str(e)}")
+            raise HTTPException(status_code=503, detail=f"Ollama request failed: {str(e)}")
         
         # Get the raw response text (not JSON)
         response_text = response.json().get("response", "").strip()
@@ -1241,68 +1275,106 @@ Output ONLY strict XML tags in this format:
 Transcript:
 {transcript}"""
         
+        # Resolve model: prefer ACTIVE_MODEL, fall back to "llama3"
+        model_to_use = ACTIVE_MODEL if ACTIVE_MODEL else "llama3"
+
+        # Send to Ollama with proper error handling
         try:
-            # Send to Ollama
-            response = requests.post("http://localhost:11434/api/generate", json={
-                "model": DEFAULT_MODEL,
+            response = requests.post(f"{OLLAMA_HOST}/api/generate", json={
+                "model": model_to_use,
                 "prompt": memory_extraction_prompt,
                 "stream": False
-            })
+            }, timeout=60)
+
+            # Check for 404 - model not found
+            if response.status_code == 404:
+                error_detail = response.text
+                print(f"[OLLAMA_ERROR] 404 Model Not Found: {error_detail}")
+                print(f"[OLLAMA_ERROR] Attempted model: {model_to_use} at {OLLAMA_HOST}/api/generate")
+                print(f"[OLLAMA_HINT] Run: ollama pull {model_to_use}")
+                return {"success": False, "error": f"Model '{model_to_use}' not found on Ollama server. Run 'ollama pull {model_to_use}'"}
+            
+            # Check for other HTTP errors
             response.raise_for_status()
+            
             ollama_response = response.json().get("response", "").strip()
-            
-            # Extract and insert MEMORY tags
-            facts_extracted = 0
-            for memory_match in re.finditer(r'<MEMORY>\s*(.*?)\s*</MEMORY>', ollama_response, re.DOTALL):
-                try:
-                    memory_content = memory_match.group(1).strip()
-                    # Split by | and clean each part - supports both 2-part (user facts) and 3-part (PERSON dossiers)
-                    parts = [part.strip() for part in memory_content.split('|')]
-                    
-                    if len(parts) < 2:
-                        continue
-                    
-                    # Handle 3-part PERSON format: PERSON | Name | Fact
-                    if len(parts) == 3 and parts[0].upper() == 'PERSON':
-                        category = 'PERSON'
-                        person_name = parts[1]
-                        specific_fact = parts[2]
-                        fact = f"{person_name} :: {specific_fact}"  # Format as "Name :: Fact" for storage/display
-                    elif len(parts) >= 2:
-                        # Handle 2-part format: Category | Fact (existing user facts)
-                        category = parts[0]
-                        fact = '|'.join(parts[1:])  # Rejoin if fact contains pipe characters
-                    else:
-                        continue
-                    
-                    # Validate and sanitize memory
-                    validated_memory = sanitize_ai_memory(category, fact, user_id)
-                    
-                    # Insert into identity_matrix
-                    memory_id = str(uuid.uuid4())
-                    cursor.execute("""
-                        INSERT INTO identity_matrix (id, user_id, category, fact)
-                        VALUES (?, ?, ?, ?)
-                    """, (memory_id, validated_memory.user_id, validated_memory.category, validated_memory.fact))
-                    
-                    facts_extracted += 1
-                    print(f"[MEMORY_COMPILED] User {user_id}: [{validated_memory.category}] {validated_memory.fact}")
-                    
-                except Exception as e:
-                    print(f"[MEMORY_COMPILE_ERROR] Failed to parse memory: {str(e)}")
-                    continue
-            
-            conn.commit()
+        
+        except requests.exceptions.Timeout as e:
+            print(f"[OLLAMA_ERROR] Memory compilation timeout (60s): {str(e)}")
             conn.close()
+            return {"success": False, "error": "Ollama request timed out after 60 seconds"}
             
-            return {"success": True, "facts_extracted": facts_extracted}
+        except requests.exceptions.ConnectionError as e:
+            print(f"[OLLAMA_ERROR] Connection failed to {OLLAMA_HOST}: {str(e)}")
+            conn.close()
+            return {"success": False, "error": f"Cannot connect to Ollama at {OLLAMA_HOST}. Is it running?"}
+            
+        except requests.exceptions.HTTPError as e:
+            try:
+                error_json = response.json()
+                error_detail = error_json.get('error', error_json.get('message', str(error_json)))
+            except:
+                error_detail = response.text
+            print(f"[OLLAMA_ERROR] HTTP {response.status_code}: {error_detail}")
+            conn.close()
+            return {"success": False, "error": f"Ollama error: {error_detail}"}
             
         except requests.exceptions.RequestException as e:
+            print(f"[OLLAMA_ERROR] Request failed: {str(e)}")
             conn.close()
-            print(f"[OLLAMA_ERROR] Memory compilation failed: {str(e)}")
-            return {"success": False, "error": f"Ollama connection failed: {str(e)}"}
+            return {"success": False, "error": f"Request to Ollama failed: {str(e)}"}
+        
+        # Extract and insert MEMORY tags
+        facts_extracted = 0
+        for memory_match in re.finditer(r'<MEMORY>\s*(.*?)\s*</MEMORY>', ollama_response, re.DOTALL):
+            try:
+                memory_content = memory_match.group(1).strip()
+                # Split by | and clean each part - supports both 2-part (user facts) and 3-part (PERSON dossiers)
+                parts = [part.strip() for part in memory_content.split('|')]
+                
+                if len(parts) < 2:
+                    continue
+                
+                # Handle 3-part PERSON format: PERSON | Name | Fact
+                if len(parts) == 3 and parts[0].upper() == 'PERSON':
+                    category = 'PERSON'
+                    person_name = parts[1]
+                    specific_fact = parts[2]
+                    fact = f"{person_name} :: {specific_fact}"  # Format as "Name :: Fact" for storage/display
+                elif len(parts) >= 2:
+                    # Handle 2-part format: Category | Fact (existing user facts)
+                    category = parts[0]
+                    fact = '|'.join(parts[1:])  # Rejoin if fact contains pipe characters
+                else:
+                    continue
+                
+                # Validate and sanitize memory
+                validated_memory = sanitize_ai_memory(category, fact, user_id)
+                
+                # Insert into identity_matrix
+                memory_id = str(uuid.uuid4())
+                cursor.execute("""
+                    INSERT INTO identity_matrix (id, user_id, category, fact)
+                    VALUES (?, ?, ?, ?)
+                """, (memory_id, validated_memory.user_id, validated_memory.category, validated_memory.fact))
+                
+                facts_extracted += 1
+                print(f"[MEMORY_COMPILED] User {user_id}: [{validated_memory.category}] {validated_memory.fact}")
+                
+            except Exception as e:
+                print(f"[MEMORY_COMPILE_ERROR] Failed to parse memory: {str(e)}")
+                continue
+        
+        conn.commit()
+        conn.close()
+        
+        return {"success": True, "facts_extracted": facts_extracted}
             
     except Exception as e:
+        try:
+            conn.close()
+        except:
+            pass
         print(f"[ERROR_MEMORY_COMPILE] {str(e)}")
         return {"success": False, "error": str(e)}
 
@@ -1357,35 +1429,71 @@ async def summarize_eod_journal(request: EODJournalRequest):
 
 EOD Summary:"""
         
+        # Send to Ollama with proper error handling
         try:
-            # Send to Ollama
-            response = requests.post("http://localhost:11434/api/generate", json={
+            response = requests.post(f"{OLLAMA_HOST}/api/generate", json={
                 "model": DEFAULT_MODEL,
                 "prompt": eod_prompt,
                 "stream": False
-            })
+            }, timeout=60)
+            
+            # Check for 404 - model not found
+            if response.status_code == 404:
+                error_detail = response.text
+                print(f"[OLLAMA_ERROR] 404 Model Not Found: {error_detail}")
+                print(f"[OLLAMA_ERROR] Attempted model: {DEFAULT_MODEL} at {OLLAMA_HOST}/api/generate")
+                print(f"[OLLAMA_HINT] Run: ollama pull {DEFAULT_MODEL}")
+                conn.close()
+                return {"success": False, "error": f"Model '{DEFAULT_MODEL}' not found on Ollama server. Run 'ollama pull {DEFAULT_MODEL}'"}
+            
+            # Check for other HTTP errors
             response.raise_for_status()
+            
             summary_text = response.json().get("response", "").strip()
             
-            # Insert summary into daily_journals
-            journal_id = str(uuid.uuid4())
-            cursor.execute("""
-                INSERT INTO daily_journals (id, user_id, date, summary)
-                VALUES (?, ?, ?, ?)
-            """, (journal_id, user_id, today_date, summary_text))
-            
-            conn.commit()
+        except requests.exceptions.Timeout as e:
+            print(f"[OLLAMA_ERROR] EOD journal request timeout (60s): {str(e)}")
             conn.close()
+            return {"success": False, "error": "Ollama request timed out after 60 seconds"}
             
-            print(f"[EOD_JOURNAL_SAVED] User {user_id} - Date: {today_date}")
-            return {"success": True, "summary": summary_text}
+        except requests.exceptions.ConnectionError as e:
+            print(f"[OLLAMA_ERROR] Connection failed to {OLLAMA_HOST}: {str(e)}")
+            conn.close()
+            return {"success": False, "error": f"Cannot connect to Ollama at {OLLAMA_HOST}. Is it running?"}
+            
+        except requests.exceptions.HTTPError as e:
+            try:
+                error_json = response.json()
+                error_detail = error_json.get('error', error_json.get('message', str(error_json)))
+            except:
+                error_detail = response.text
+            print(f"[OLLAMA_ERROR] HTTP {response.status_code}: {error_detail}")
+            conn.close()
+            return {"success": False, "error": f"Ollama error: {error_detail}"}
             
         except requests.exceptions.RequestException as e:
+            print(f"[OLLAMA_ERROR] Request failed: {str(e)}")
             conn.close()
-            print(f"[OLLAMA_ERROR] EOD journal summarization failed: {str(e)}")
-            return {"success": False, "error": f"Ollama connection failed: {str(e)}"}
+            return {"success": False, "error": f"Request to Ollama failed: {str(e)}"}
+        
+        # Insert summary into daily_journals
+        journal_id = str(uuid.uuid4())
+        cursor.execute("""
+            INSERT INTO daily_journals (id, user_id, date, summary)
+            VALUES (?, ?, ?, ?)
+        """, (journal_id, user_id, today_date, summary_text))
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"[EOD_JOURNAL_SAVED] User {user_id} - Date: {today_date}")
+        return {"success": True, "summary": summary_text}
             
     except Exception as e:
+        try:
+            conn.close()
+        except:
+            pass
         print(f"[ERROR_EOD_JOURNAL] {str(e)}")
         return {"success": False, "error": str(e)}
 

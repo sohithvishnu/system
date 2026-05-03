@@ -193,4 +193,4 @@ CREATE TABLE tickets (
 
 ---
 
-**See also:** [Semantic XML](semantic_xml.md) | [Dual-Mode DB](dual_mode_db.md) | [Deployment](../ops/docker.md)
+**See also:** [Deployment](../ops/docker.md) | [Quick Start](quickstart.md)

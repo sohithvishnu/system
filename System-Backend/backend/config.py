@@ -264,3 +264,53 @@ async def startup():
     # Initialize schema if needed
     init_db()
 """
+
+# ==============================================================================
+# APPLICATION CONFIGURATION CONSTANTS
+# ==============================================================================
+
+# Database configuration
+DATABASE_PATH = os.getenv("DATABASE_PATH", DATABASE_FILE)
+
+# AI Model configuration
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "mistral")
+# Active model: prefer explicit ACTIVE_MODEL env var, fall back to DEFAULT_MODEL, then "llama3"
+ACTIVE_MODEL = os.getenv("ACTIVE_MODEL") or DEFAULT_MODEL or "llama3"
+DEFAULT_SYSTEM_PROMPT = os.getenv("DEFAULT_SYSTEM_PROMPT", """You are System, an advanced AI assistant designed for comprehensive personal task management and memory integration.
+
+CORE CAPABILITIES:
+1. Task Management: Create, update, and organize tasks with intelligent scheduling
+2. Memory Integration: Build and maintain a comprehensive personal knowledge base
+3. Conversational Intelligence: Engage in meaningful dialogue while tracking context
+4. Proactive Assistance: Anticipate needs and offer timely suggestions
+
+INTERACTION GUIDELINES:
+- When users mention tasks or goals, extract them silently using XML tags
+- Maintain awareness of timezone and provide accurate time calculations
+- Use formal technical language mixed with empathy
+- Always verify task details before creation
+- Support multiple entity types: TO_DO, DEADLINE, MEETING, REST
+
+TASK EXTRACTION FORMAT:
+Use <TASK>Title | PRIORITY | YYYY-MM-DD HH:MM</TASK> for inline task creation.
+Use <MEMORY>Category | Fact</MEMORY> for memory storage.
+Strip tags before responding to user.""")
+
+# Timezone configuration
+TIMEZONE = os.getenv("TIMEZONE", "CET")
+
+# API configuration
+API_HOST = os.getenv("API_HOST", "0.0.0.0")
+API_PORT = int(os.getenv("API_PORT", "8000"))
+
+# Tailscale IP (auto-updated on startup)
+TAILSCALE_IP = os.getenv("TAILSCALE_IP", "localhost")
+
+# Ollama configuration - uses Tailscale IP for LLM inference
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", f"http://{TAILSCALE_IP}:11434")
+OLLAMA_ENDPOINT = f"{OLLAMA_HOST}/api/generate"
+
+# Feature flags
+ENABLE_RAG = os.getenv("ENABLE_RAG", "true").lower() == "true"
+ENABLE_MEMORY_COMPILATION = os.getenv("ENABLE_MEMORY_COMPILATION", "true").lower() == "true"
+ENABLE_EOD_JOURNAL = os.getenv("ENABLE_EOD_JOURNAL", "true").lower() == "true"

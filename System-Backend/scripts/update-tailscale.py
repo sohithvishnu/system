@@ -52,28 +52,19 @@ def update_config(tailscale_ip):
     try:
         content = config_file.read_text()
         
-        # Update OLLAMA_ENDPOINT to use Tailscale IP
+        # Update TAILSCALE_IP default value
         updated_content = re.sub(
-            r'OLLAMA_ENDPOINT = "http://[^"]*"',
-            f'OLLAMA_ENDPOINT = "http://{tailscale_ip}:11434/api/generate"',
+            r'TAILSCALE_IP = os\.getenv\("TAILSCALE_IP", "[^"]*"\)',
+            f'TAILSCALE_IP = os.getenv("TAILSCALE_IP", "{tailscale_ip}")',
             content
         )
         
-        # Also add TAILSCALE_IP config if it doesn't exist
-        if 'TAILSCALE_IP = ' not in updated_content:
-            # Add after DEFAULT_MODEL
-            updated_content = re.sub(
-                r'(DEFAULT_MODEL = "llama3")',
-                f'DEFAULT_MODEL = "llama3"\nTAILSCALE_IP = "{tailscale_ip}"',
-                updated_content
-            )
-        else:
-            # Update existing TAILSCALE_IP
-            updated_content = re.sub(
-                r'TAILSCALE_IP = "[^"]*"',
-                f'TAILSCALE_IP = "{tailscale_ip}"',
-                updated_content
-            )
+        # Update OLLAMA_HOST default value to use Tailscale IP
+        updated_content = re.sub(
+            r'OLLAMA_HOST = os\.getenv\("OLLAMA_HOST", f?"http://[^"]*:11434"\)',
+            f'OLLAMA_HOST = os.getenv("OLLAMA_HOST", f"http://{tailscale_ip}:11434")',
+            updated_content
+        )
         
         config_file.write_text(updated_content)
         print(f"✅ Backend Tailscale IP updated successfully!")

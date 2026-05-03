@@ -6,26 +6,23 @@ site_url: "http://localhost:8001/"
 theme:
   name: material
   palette:
-    - scheme: dark
-      primary: custom
-      accent: custom
+    - scheme: slate
+      primary: green
+      accent: lime
   features:
-    - content.code.copy
-    - content.tabs.link
-    - navigation.tabs
+    - navigation.instant
+    - navigation.tracking
     - navigation.top
     - search.suggest
     - search.highlight
-  font:
-    text: 'Courier New'
-    code: 'DejaVu Sans Mono'
+    - content.code.copy
 
 extra_css:
   - stylesheets/extra.css
 
 plugins:
-  - search
-  - offline
+  - search:
+      lang: en
 
 markdown_extensions:
   - admonition
@@ -46,5 +43,9 @@ nav:
     - Authentication: api/auth.md
   - Operations:
     - Docker: ops/docker.md
+  - Implementation:
+    - Completion Summary: COMPLETION_SUMMARY.md
+    - Implementation Summary: IMPLEMENTATION_SUMMARY.md
+    - System Complete: SYSTEM_COMPLETE.md
 
 copyright: "© 2026 Advanced Intelligence Research"

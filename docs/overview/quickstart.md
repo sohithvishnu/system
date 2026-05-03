@@ -75,10 +75,10 @@ mkdocs serve
 
 ### Next steps
 
-- **Learn architecture:** [Core Design](../architecture/semantic_xml.md)
+- **Learn architecture:** [Core Design](architecture.md)
 - **Deploy to production:** [Docker Guide](../ops/docker.md)
-- **Security review:** [Threat Model](../security/threat_model.md)
 - **API integration:** [Authentication](../api/auth.md)
+- **All Docs:** [Documentation Index](../index.md)
 
 ---
 
