@@ -77,36 +77,25 @@ export default function SideNavigationLayout() {
         sidebarCollapsed && styles.sidebarCollapsed,
         isDesktop && !sidebarCollapsed && styles.sidebarDesktop
       ]}>
-        <SafeAreaView style={styles.sidebarInner}>
-          <View style={styles.sidebarHeader}>
-            <TouchableOpacity
-              onPress={() => setSidebarCollapsed(!sidebarCollapsed)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={styles.toggleBtn}
-            >
-              <Feather
-                name={sidebarCollapsed ? 'chevron-right' : 'chevron-left'}
-                size={FONT.md}
-                color={COLORS.textMuted}
-              />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.navStack} showsVerticalScrollIndicator={false}>
+        <SafeAreaView style={[styles.sidebarInner, isDesktop && !sidebarCollapsed && styles.railInner]}>
+          <ScrollView style={[styles.navStack, isDesktop && !sidebarCollapsed && styles.railStack]} showsVerticalScrollIndicator={false}>
             {navItems.map((item) => {
               const isActive = pathname.includes(item.name);
               return (
                 <Link key={item.name} href={`/(tabs)/${item.name}`} asChild>
                   <TouchableOpacity
-                    style={StyleSheet.flatten([styles.navItem, isActive && styles.navItemActive])}
+                    style={StyleSheet.flatten([
+                      isDesktop && !sidebarCollapsed ? styles.railItem : styles.navItem,
+                      isActive && (isDesktop && !sidebarCollapsed ? styles.railItemActive : styles.navItemActive)
+                    ])}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
                     <Feather
                       name={item.icon as any}
-                      size={FONT.md}
-                      color={isActive ? COLORS.accent : COLORS.textMuted}
+                      size={isDesktop && !sidebarCollapsed ? FONT.xxl : FONT.md}
+                      color={isActive ? COLORS.accent : (isDesktop && !sidebarCollapsed ? COLORS.textGhost : COLORS.textMuted)}
                     />
-                    {!sidebarCollapsed && (
+                    {!(sidebarCollapsed || (isDesktop && !sidebarCollapsed)) && (
                       <Text
                         style={[
                           styles.navLabel,
@@ -122,7 +111,7 @@ export default function SideNavigationLayout() {
             })}
           </ScrollView>
 
-          {!sidebarCollapsed && (
+          {!sidebarCollapsed && !isDesktop && (
             <View style={styles.statusModule}>
               <View
                 style={[
@@ -170,7 +159,7 @@ const styles = StyleSheet.create({
     borderRightColor: COLORS.border,
   },
   sidebarDesktop: {
-    width: 280,
+    width: scale(72),
   },
   sidebarCollapsed: {
     width: scale(70),
@@ -181,17 +170,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: SPACE.md,
   },
-  sidebarHeader: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: SPACE.lg,
-  },
-  toggleBtn: {
-    padding: SPACE.xs,
+  railInner: {
+    paddingHorizontal: SPACE.xs,
+    alignItems: 'center',
   },
   navStack: {
     flex: 1,
     gap: SPACE.md,
+  },
+  railStack: {
+    gap: SPACE.lg,
   },
   navItem: {
     minHeight: scale(48),
@@ -202,8 +190,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACE.md,
   },
+  railItem: {
+    width: scale(48),
+    height: scale(48),
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: RADIUS.md,
+  },
   navItemActive: {
     backgroundColor: COLORS.accentTint,
+  },
+  railItemActive: {
+    backgroundColor: COLORS.accentTint,
+    borderWidth: 1,
+    borderColor: 'rgba(0,255,102,0.2)',
   },
   navLabel: {
     fontSize: FONT.sm,
