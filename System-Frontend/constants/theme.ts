@@ -35,7 +35,7 @@ export const PRIORITY_COLORS: { [key: string]: string } = {
   LOW:    COLORS.accent,
 };
 
-export const RADIUS = { sm: 5, md: 6, lg: 8 };
+
 
 export const FONT = {
   xs:  scale(9),
@@ -64,4 +64,14 @@ export const FONT_FAMILY = {
 export const BOLD_STYLES = {
   radius: { sm: 5, md: 6, lg: 8, pill: 20 },
   border: 1,
+};
+
+// Add this below your FONT and SPACE constants
+export const RADIUS = {
+  xs: scale(2),
+  sm: scale(4),
+  md: scale(8),
+  lg: scale(12),
+  xl: scale(16),
+  round: 9999,
 };

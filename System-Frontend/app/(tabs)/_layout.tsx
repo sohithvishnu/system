@@ -4,7 +4,7 @@ import { Link, Slot, usePathname } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BACKEND_URL } from '../../constants/config';
-import { COLORS, FONT, FONT_FAMILY, SPACE } from '../../constants/theme';
+import { COLORS, FONT, FONT_FAMILY, SPACE, RADIUS } from '../../constants/theme';
 import { scale } from '../../utils/responsive';
 
 export default function SideNavigationLayout() {
@@ -201,9 +201,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accentTint,
   },
   railItemActive: {
-    backgroundColor: COLORS.accentTint,
-    borderWidth: 1,
-    borderColor: 'rgba(0,255,102,0.2)',
+    // Icon color change only, no background or border
   },
   navLabel: {
     fontSize: FONT.sm,
