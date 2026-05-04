@@ -1,8 +1,9 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, View, ActivityIndicator, Alert, SafeAreaView, Text, Platform } from 'react-native';
+import { StyleSheet, View, Alert, SafeAreaView, Text, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { BACKEND_URL } from '../../constants/config';
+import { BlinkingCursor } from '../../components/ui';
 
 // Conditionally import WebView only for native
 let WebView: any = null;
@@ -354,7 +355,7 @@ export default function TopologyScreen() {
       <SafeAreaView style={styles.safeArea}>
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#00FF66" />
+            <BlinkingCursor />
           </View>
         ) : error ? (
           <View style={styles.errorContainer}>

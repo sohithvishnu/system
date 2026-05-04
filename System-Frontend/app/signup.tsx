@@ -6,7 +6,6 @@ import {
     TouchableOpacity,
     StyleSheet,
     SafeAreaView,
-    ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
+import { BlinkingCursor } from '../components/ui';
 
 export default function SignupScreen({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
     const { signup } = useAuth();
@@ -173,7 +173,7 @@ export default function SignupScreen({ onSwitchToLogin }: { onSwitchToLogin: () 
 
                         {loading ? (
                             <View style={styles.loadingContainer}>
-                                <ActivityIndicator color="#8B2CFF" size="large" />
+                                <BlinkingCursor />
                                 <Text style={styles.loadingText}>Creating account...</Text>
                             </View>
                         ) : (

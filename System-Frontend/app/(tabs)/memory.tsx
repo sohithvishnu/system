@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert, useWindowDimensions, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, Alert, useWindowDimensions, RefreshControl } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { COLORS, BOLD_STYLES, FONT, FONT_FAMILY, RADIUS, SPACE } from '../../constants/theme';
 import { BACKEND_URL } from '../../constants/config';
 import { Feather } from '@expo/vector-icons';
+import { BlinkingCursor } from '../../components/ui';
 
 interface IdentityFact {
   id: string;
@@ -160,7 +161,7 @@ export default function MemoryScreen() {
           activeOpacity={0.9}
         >
           {isCompiling ? (
-            <ActivityIndicator color={COLORS.accent} size="small" />
+            <BlinkingCursor />
           ) : (
             <>
               <Feather name="cpu" size={FONT.sm} color={COLORS.accent} />
@@ -172,7 +173,7 @@ export default function MemoryScreen() {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.accent} />
+          <BlinkingCursor />
           <Text style={styles.loadingText}>loading memory fabric...</Text>
         </View>
       ) : orderedCategories.length === 0 ? (

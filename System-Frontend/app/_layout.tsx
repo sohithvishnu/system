@@ -10,7 +10,8 @@ import { AuthProvider, useAuth } from '../context/AuthContext';
 import { ToastProvider } from '../context/ToastContext';
 import { COLORS } from '../constants/theme';
 import { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { View } from 'react-native';
+import { BlinkingCursor } from '../components/ui';
 
 export default function RootLayout() {
   return (
@@ -53,8 +54,8 @@ function MainStack() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: COLORS.bg, justifyContent: 'center' }}>
-        <ActivityIndicator color={COLORS.accent} size="large" />
+      <View style={{ flex: 1, backgroundColor: COLORS.bg, justifyContent: 'center', alignItems: 'center' }}>
+        <BlinkingCursor />
       </View>
     );
   }

@@ -6,7 +6,6 @@ import {
     TouchableOpacity,
     StyleSheet,
     SafeAreaView,
-    ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
     Keyboard,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
+import { BlinkingCursor } from '../components/ui';
 import SignupScreen from './signup';
 
 export default function WelcomeScreen() {
@@ -117,7 +117,7 @@ export default function WelcomeScreen() {
 
                         {loading ? (
                             <View style={styles.loadingContainer}>
-                                <ActivityIndicator color="#8B2CFF" size="large" />
+                                <BlinkingCursor />
                                 <Text style={styles.loadingText}>Authenticating...</Text>
                             </View>
                         ) : (

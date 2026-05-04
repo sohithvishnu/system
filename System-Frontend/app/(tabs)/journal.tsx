@@ -1,10 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert, useWindowDimensions, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, Alert, useWindowDimensions, RefreshControl } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { COLORS, FONT, FONT_FAMILY, RADIUS, SPACE } from '../../constants/theme';
 import { BACKEND_URL } from '../../constants/config';
+import { BlinkingCursor } from '../../components/ui';
 
 type Journal = {
   id: string;
@@ -95,7 +96,7 @@ export default function JournalScreen() {
           disabled={isGenerating}
         >
           {isGenerating ? (
-            <ActivityIndicator color={COLORS.accent} size="small" />
+            <BlinkingCursor />
           ) : (
             <>
               <Feather name="zap" size={FONT.sm} color={COLORS.accent} />
@@ -107,7 +108,7 @@ export default function JournalScreen() {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.accent} />
+          <BlinkingCursor />
         </View>
       ) : journals.length > 0 ? (
         <ScrollView
