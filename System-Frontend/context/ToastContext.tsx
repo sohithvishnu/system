@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import { COLORS, FONT, FONT_FAMILY, SPACE } from '../../constants/theme';
+import { COLORS, FONT, FONT_FAMILY, SPACE } from '../constants/theme';
 
 type ToastType = 'success' | 'error';
 
