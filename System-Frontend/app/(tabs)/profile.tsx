@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ScrollView, Modal, ActivityIndicator, Platform } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ScrollView, Modal, Platform, KeyboardAvoidingView } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { COLORS, FONT, FONT_FAMILY, SPACE, RADIUS } from '../../constants/theme';
 import { BACKEND_URL } from '../../constants/config';
-import { Screen, PageHeader, Section, Card, GhostButton } from '../../components/ui';
+import { Screen, PageHeader, Section, Card, GhostButton, BlinkingCursor } from '../../components/ui';
 import { scale } from '../../utils/responsive';
 
 export default function ProfileScreen() {
@@ -222,7 +222,17 @@ export default function ProfileScreen() {
       {/* CHANGE PASSWORD MODAL */}
       <Modal visible={showChangePassword} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <ScrollView style={styles.modalContent} scrollEnabled showsVerticalScrollIndicator={false}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={100}
+            style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+          >
+            <ScrollView
+              style={styles.modalContent}
+              scrollEnabled
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: SPACE.xxl }}
+            >
             <Text style={styles.modalTitle}>CHANGE / PASSWORD</Text>
             
             {/* Old Password Input */}
@@ -238,6 +248,7 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 style={styles.eyeIcon}
                 onPress={() => setShowOldPw(!showOldPw)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Feather name={showOldPw ? 'eye' : 'eye-off'} size={FONT.md} color={COLORS.accent} />
               </TouchableOpacity>
@@ -256,6 +267,7 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 style={styles.eyeIcon}
                 onPress={() => setShowNewPw(!showNewPw)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Feather name={showNewPw ? 'eye' : 'eye-off'} size={FONT.md} color={COLORS.accent} />
               </TouchableOpacity>
@@ -274,6 +286,7 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 style={styles.eyeIcon}
                 onPress={() => setShowConfirmPw(!showConfirmPw)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Feather name={showConfirmPw ? 'eye' : 'eye-off'} size={FONT.md} color={COLORS.accent} />
               </TouchableOpacity>
@@ -285,7 +298,7 @@ export default function ProfileScreen() {
             )}
 
             {/* Loading Indicator */}
-            {loading && <ActivityIndicator color={COLORS.accent} style={{ marginVertical: SPACE.md }} />}
+            {loading && <BlinkingCursor style={{ marginVertical: SPACE.md }} />}
 
             {/* Modal Actions */}
             <View style={styles.modalActions}>
@@ -308,7 +321,8 @@ export default function ProfileScreen() {
                 <Text style={styles.confirmBtnText}>CONFIRM</Text>
               </TouchableOpacity>
             </View>
-          </ScrollView>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 

@@ -1,9 +1,9 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
-import { COLORS } from '../../constants/theme';
+import { COLORS, FONT, FONT_FAMILY, RADIUS, SPACE } from '../../constants/theme';
 import { BACKEND_URL } from '../../constants/config';
 
 type Ticket = { 
@@ -111,16 +111,16 @@ export default function ProjectsScreen() {
       >
         {/* Folder Icon */}
         <View style={styles.folderIconContainer}>
-          <Ionicons name="folder" size={40} color="#00FF66" />
+          <Feather name="folder" size={22} color={COLORS.accent} />
         </View>
 
         {/* Folder Content */}
         <View style={styles.folderContent}>
           <Text style={styles.projectName}>
-            > {projectName}
+            {projectName}
           </Text>
           <Text style={styles.activeCounter}>
-            {formattedCount} ACTIVE_ENTITIES
+            {formattedCount} active
           </Text>
         </View>
       </TouchableOpacity>
@@ -136,23 +136,23 @@ export default function ProjectsScreen() {
         <View style={styles.detailsHeader}>
           <Text style={styles.detailsTitle}>{projectName}</Text>
           <TouchableOpacity onPress={() => setShowProjectDetails(false)}>
-            <Ionicons name="close" size={24} color="#FFFFFF" />
+            <Feather name="x" size={FONT.lg} color={COLORS.textMuted} />
           </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.detailsList} showsVerticalScrollIndicator={false}>
           {activeTasks.length === 0 ? (
-            <Text style={styles.emptyText}>NO ACTIVE TASKS IN THIS PROJECT</Text>
+            <Text style={styles.emptyText}>$ no active tasks</Text>
           ) : (
             activeTasks.map(task => (
               <View key={task.id} style={styles.detailsTaskCard}>
-                <Text style={styles.detailsTaskTitle}>{task.title.toUpperCase()}</Text>
-                <View style={styles.detailsTaskMeta}>
+                <Text style={styles.detailsTaskTitle}>{task.title}</Text>
+                <View style={styles.detailsTaskMetaRow}>
                   <Text style={styles.detailsTaskMeta}>
-                    {task.entity_type || 'TO_DO'} • {task.priority?.toUpperCase() || 'MEDIUM'}
+                    {(task.entity_type || 'to_do').toLowerCase().replace('_', ' ')} · {task.priority?.toLowerCase() || 'medium'}
                   </Text>
                   <Text style={styles.detailsTaskTime}>
-                    {task.dueDate || 'NO DATE'}
+                    {task.dueDate || 'no date'}
                   </Text>
                 </View>
               </View>
@@ -167,26 +167,26 @@ export default function ProjectsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>PROJECT /</Text>
-          <Text style={styles.headerHighlight}>HUB</Text>
+          <Text style={styles.headerTitle}>projects</Text>
+          <Text style={styles.headerSubtitle}>~/projects</Text>
         </View>
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Text style={{ color: '#00FF66', fontWeight: '900', letterSpacing: 2, fontSize: 14 }}>[ SYSTEM_LOADING... ]</Text>
+        <View style={styles.centered}>
+          <Text style={styles.loadingText}>loading...</Text>
         </View>
       ) : projectEntries.length === 0 ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 }}>
-          <Text style={{ color: '#FFFFFF', fontWeight: '900', letterSpacing: 1, fontSize: 20, marginBottom: 16 }}>[ NO_PROJECTS_FOUND ]</Text>
-          <Text style={{ color: '#666666', fontWeight: '900', letterSpacing: 1, fontSize: 12, textAlign: 'center' }}>CREATE A TASK AND ASSIGN IT TO A PROJECT TO BEGIN.</Text>
+        <View style={styles.centered}>
+          <Text style={styles.emptyTitle}>$ no projects found</Text>
+          <Text style={styles.emptySubtext}>assign a task to a project to get started.</Text>
         </View>
       ) : (
         <ScrollView
           style={styles.projectsGrid}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#00FF66" />}
-          contentContainerStyle={{ paddingVertical: 16, paddingHorizontal: 16, gap: 12 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.accent} />}
+          contentContainerStyle={{ paddingVertical: SPACE.lg, paddingHorizontal: SPACE.lg, gap: SPACE.sm }}
         >
           {projectEntries.map(([projectName, projectTasks], index) =>
             renderProjectFolder(projectName, projectTasks, index)
@@ -207,148 +207,89 @@ export default function ProjectsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
+  container: { flex: 1, backgroundColor: COLORS.bg },
   header: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 2,
-    borderColor: '#1a1a1a',
-    backgroundColor: '#000000',
+    paddingVertical: SPACE.md, paddingHorizontal: SPACE.lg,
+    borderBottomWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bg,
   },
-  headerTitle: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 2,
-  },
-  headerHighlight: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#00FF66',
-    letterSpacing: -1,
-    marginTop: 4,
-  },
-  projectsGrid: {
-    flex: 1,
-  },
+  headerTitle: { fontSize: FONT.xxl, fontWeight: '500', color: COLORS.textPrimary, fontFamily: FONT_FAMILY.sans },
+  headerSubtitle: { fontSize: FONT.md, color: COLORS.textMuted, fontFamily: FONT_FAMILY.mono, marginTop: 2 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: SPACE.xl },
+  loadingText: { color: COLORS.textMuted, fontSize: FONT.sm, fontFamily: FONT_FAMILY.mono },
+  emptyTitle: { color: COLORS.textMuted, fontSize: FONT.base, fontFamily: FONT_FAMILY.mono, marginBottom: SPACE.xs },
+  emptySubtext: { color: COLORS.textGhost, fontSize: FONT.sm, fontFamily: FONT_FAMILY.mono, textAlign: 'center' },
+
+  projectsGrid: { flex: 1 },
   projectFolder: {
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    borderRadius: 0,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1, borderColor: COLORS.borderMid,
+    borderRadius: RADIUS.md,
+    padding: SPACE.md,
+    flexDirection: 'row', alignItems: 'center', gap: SPACE.md,
   },
   folderIconContainer: {
-    width: 60,
-    height: 60,
-    backgroundColor: '#1a1a1a',
-    borderWidth: 2,
-    borderColor: '#00FF66',
-    borderRadius: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: SPACE.xl + SPACE.xl,
+    height: SPACE.xl + SPACE.xl,
+    backgroundColor: COLORS.bg,
+    borderWidth: 1, borderColor: COLORS.borderMid,
+    borderRadius: RADIUS.sm,
+    justifyContent: 'center', alignItems: 'center',
   },
-  folderContent: {
-    flex: 1,
-  },
+  folderContent: { flex: 1 },
   projectName: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-    fontSize: 16,
-    letterSpacing: 1,
-    marginBottom: 8,
-    fontFamily: 'Courier New',
+    color: COLORS.textPrimary, fontWeight: '500',
+    fontSize: FONT.md, marginBottom: SPACE.xs,
+    fontFamily: FONT_FAMILY.mono,
   },
   activeCounter: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 12,
-    letterSpacing: 1,
-    fontFamily: 'Courier New',
+    color: COLORS.accent, fontSize: FONT.xs,
+    fontFamily: FONT_FAMILY.mono,
   },
+
   modal: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: SPACE.lg,
   },
   modalContent: {
-    width: '100%',
-    maxWidth: 480,
-    maxHeight: '80%',
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    borderRadius: 0,
+    width: '100%', maxWidth: 480, maxHeight: '80%',
+    backgroundColor: COLORS.bg,
+    borderWidth: 1, borderColor: COLORS.borderMid,
+    borderRadius: RADIUS.lg,
   },
-  detailsModal: {
-    flex: 1,
-    backgroundColor: '#0A0A0A',
-  },
+  detailsModal: { flex: 1, backgroundColor: COLORS.bg },
   detailsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderBottomWidth: 2,
-    borderColor: '#1a1a1a',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: SPACE.md, paddingHorizontal: SPACE.md,
+    borderBottomWidth: 1, borderColor: COLORS.border,
   },
   detailsTitle: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 16,
-    letterSpacing: 1,
-    fontFamily: 'Courier New',
+    color: COLORS.textPrimary, fontWeight: '500',
+    fontSize: FONT.md, fontFamily: FONT_FAMILY.mono,
   },
-  detailsList: {
-    flex: 1,
-  },
+  detailsList: { flex: 1 },
   emptyText: {
-    color: '#666666',
-    fontWeight: '900',
-    fontSize: 14,
-    letterSpacing: 1,
-    textAlign: 'center',
-    paddingVertical: 40,
-    fontFamily: 'Courier New',
+    color: COLORS.textGhost, fontSize: FONT.sm,
+    textAlign: 'center', paddingVertical: SPACE.xl,
+    fontFamily: FONT_FAMILY.mono,
   },
   detailsTaskCard: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: '#1a1a1a',
+    paddingHorizontal: SPACE.md, paddingVertical: SPACE.sm,
+    borderBottomWidth: 1, borderColor: COLORS.border,
   },
   detailsTaskTitle: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-    fontSize: 14,
-    marginBottom: 8,
-    letterSpacing: -0.5,
+    color: COLORS.textPrimary, fontWeight: '500',
+    fontSize: FONT.md, marginBottom: SPACE.xs,
+    fontFamily: FONT_FAMILY.sans,
   },
+  detailsTaskMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   detailsTaskMeta: {
-    color: '#888888',
-    fontWeight: '700',
-    fontSize: 11,
-    letterSpacing: 0.5,
-    fontFamily: 'Courier New',
+    color: COLORS.textMuted, fontSize: FONT.xs,
+    fontFamily: FONT_FAMILY.mono,
   },
   detailsTaskTime: {
-    color: '#666666',
-    fontWeight: '700',
-    fontSize: 11,
-    letterSpacing: 0.5,
-    fontFamily: 'Courier New',
+    color: COLORS.textGhost, fontSize: FONT.xs,
+    fontFamily: FONT_FAMILY.mono,
   },
 });

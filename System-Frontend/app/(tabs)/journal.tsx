@@ -1,9 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert, useWindowDimensions, RefreshControl } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
-import { COLORS } from '../../constants/theme';
+import { COLORS, FONT, FONT_FAMILY, RADIUS, SPACE } from '../../constants/theme';
 import { BACKEND_URL } from '../../constants/config';
 
 type Journal = {
@@ -85,35 +85,35 @@ export default function JournalScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>[ EOD_LOGS ]</Text>
-        <Text style={styles.subtitle}>End-of-Day Journal</Text>
-      </View>
-
-      <View style={[styles.generateButtonContainer, isGenerating && styles.generateButtonContainerActive]}>
+        <View>
+          <Text style={styles.headerTitle}>journal</Text>
+          <Text style={styles.headerSubtitle}>~/eod</Text>
+        </View>
         <TouchableOpacity
           style={[styles.generateBtn, isGenerating && styles.generateBtnActive]}
           onPress={generateEODReport}
           disabled={isGenerating}
         >
           {isGenerating ? (
-            <ActivityIndicator color="#0A0A0A" size="small" />
+            <ActivityIndicator color={COLORS.accent} size="small" />
           ) : (
-            <Text style={[styles.generateBtnText, isGenerating && styles.generateBtnTextActive]}>
-              [ GENERATE_EOD_REPORT ]
-            </Text>
+            <>
+              <Feather name="zap" size={FONT.sm} color={COLORS.accent} />
+              <Text style={styles.generateBtnText}>generate</Text>
+            </>
           )}
         </TouchableOpacity>
       </View>
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#00FF66" />
+          <ActivityIndicator size="large" color={COLORS.accent} />
         </View>
       ) : journals.length > 0 ? (
         <ScrollView
           style={styles.journalsContainer}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-          contentContainerStyle={{ paddingVertical: 16, paddingHorizontal: isMobile ? 12 : 20 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.accent} />}
+          contentContainerStyle={{ paddingVertical: SPACE.lg, paddingHorizontal: isMobile ? SPACE.md : SPACE.xl }}
         >
           {journals.map((journal) => (
             <View key={journal.id} style={styles.journalPrintout}>
@@ -124,8 +124,8 @@ export default function JournalScreen() {
         </ScrollView>
       ) : (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>[ no_entries_yet ]</Text>
-          <Text style={styles.emptySubtext}>Generate your first EOD report to get started</Text>
+          <Text style={styles.emptyText}>$ no entries yet</Text>
+          <Text style={styles.emptySubtext}>generate your first eod report to get started</Text>
         </View>
       )}
     </SafeAreaView>
@@ -133,104 +133,59 @@ export default function JournalScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
+  container: { flex: 1, backgroundColor: COLORS.bg },
   header: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: '#1a1a1a',
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  title: {
-    color: '#00FF66',
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 2,
-  },
-  subtitle: {
-    color: '#666',
-    fontSize: 11,
-    marginTop: 4,
-    letterSpacing: 1,
-  },
-  generateButtonContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 2,
-    borderBottomColor: '#1a1a1a',
-  },
-  generateButtonContainerActive: {
-    borderBottomColor: '#00FF66',
-  },
+  headerTitle: { fontSize: FONT.xxl, fontWeight: '500', color: COLORS.textPrimary, fontFamily: FONT_FAMILY.sans },
+  headerSubtitle: { fontSize: FONT.md, color: COLORS.textMuted, fontFamily: FONT_FAMILY.mono, marginTop: 2 },
+
   generateBtn: {
-    backgroundColor: '#00FF66',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    minHeight: 56,
-    borderRadius: 0,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: SPACE.xs,
+    backgroundColor: COLORS.accentTint,
+    borderWidth: 1,
+    borderColor: 'rgba(0,255,102,0.18)',
+    borderRadius: RADIUS.sm,
+    paddingVertical: SPACE.sm,
+    paddingHorizontal: SPACE.md,
   },
-  generateBtnActive: {
-    backgroundColor: '#0A0A0A',
-  },
-  generateBtnText: {
-    color: '#000',
-    fontWeight: '900',
-    fontSize: 12,
-    letterSpacing: 1,
-  },
-  generateBtnTextActive: {
-    color: '#00FF66',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  journalsContainer: {
-    flex: 1,
-  },
+  generateBtnActive: { backgroundColor: COLORS.surface },
+  generateBtnText: { color: COLORS.accent, fontSize: FONT.md, fontFamily: FONT_FAMILY.mono, fontWeight: '500' },
+
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  journalsContainer: { flex: 1 },
+
   journalPrintout: {
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    marginBottom: 16,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.lg,
+    marginBottom: SPACE.md,
   },
   journalDate: {
-    color: '#00FF66',
-    fontSize: 12,
-    fontWeight: '900',
-    fontFamily: 'Courier New',
-    letterSpacing: 1,
-    marginBottom: 12,
+    color: COLORS.textMuted,
+    fontSize: FONT.md,
+    fontFamily: FONT_FAMILY.mono,
+    marginBottom: SPACE.sm,
   },
   journalSummary: {
-    color: '#ccc',
-    fontSize: 13,
-    lineHeight: 20,
-    letterSpacing: 0.5,
+    color: COLORS.textSecondary,
+    fontSize: FONT.md,
+    lineHeight: FONT.md * 1.65,
+    fontFamily: FONT_FAMILY.sans,
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  emptyText: {
-    color: '#666',
-    fontSize: 14,
-    fontWeight: '900',
-    letterSpacing: 1,
-    marginBottom: 8,
-  },
-  emptySubtext: {
-    color: '#444',
-    fontSize: 12,
-    letterSpacing: 0.5,
-  },
+
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: SPACE.xl },
+  emptyText: { color: COLORS.textMuted, fontSize: FONT.base, fontFamily: FONT_FAMILY.mono, marginBottom: SPACE.xs },
+  emptySubtext: { color: COLORS.textGhost, fontSize: FONT.sm, fontFamily: FONT_FAMILY.mono, textAlign: 'center' },
 });

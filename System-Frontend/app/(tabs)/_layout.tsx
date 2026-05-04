@@ -1,43 +1,45 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, SafeAreaView, useWindowDimensions, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, SafeAreaView, Text } from 'react-native';
 import { Link, Slot, usePathname } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BACKEND_URL } from '../../constants/config';
+import { COLORS, FONT, FONT_FAMILY } from '../../constants/theme';
 
 export default function SideNavigationLayout() {
   const pathname = usePathname();
-  const { width } = useWindowDimensions();
-  
-  // Responsive breakpoint: tablet is 768px
-  const isMobile = width < 768;
-
-  // State for system status
   const [isOnline, setIsOnline] = useState<boolean>(false);
   const [activeModel, setActiveModel] = useState<string>('NONE');
 
   const navItems = [
-    { name: 'chat', icon: 'terminal-outline', label: 'SYSTEM' },
-    { name: 'lifeline', icon: 'time-outline', label: 'LIFELINE' },
-    { name: 'board', icon: 'grid-outline', label: 'BOARD' },
-    { name: 'projects', icon: 'folder-outline', label: 'PROJECTS' },
-    { name: 'calendar', icon: 'flash-outline', label: 'AGENDA' },
-    { name: 'profile', icon: 'id-card-outline', label: 'USER' },
-    { name: 'memory', icon: 'bulb-outline', label: 'MEMORY' },
-    { name: 'topology', icon: 'git-network', label: 'TOPOLOGY' },
-    { name: 'journal', icon: 'book-outline', label: 'EOD_LOGS' },
-    { name: 'settings', icon: 'hardware-chip-outline', label: 'CONFIG' },
+    { name: 'chat',     icon: 'terminal',  label: 'SYSTEM'   },
+    { name: 'lifeline', icon: 'clock',     label: 'LIFELINE' },
+    { name: 'board',    icon: 'grid',      label: 'BOARD'    },
+    { name: 'projects', icon: 'folder',    label: 'PROJECTS' },
+    { name: 'calendar', icon: 'zap',       label: 'AGENDA'   },
+    { name: 'profile',  icon: 'user',      label: 'USER'     },
+    { name: 'memory',   icon: 'cpu',       label: 'MEMORY'   },
+    { name: 'topology', icon: 'share-2',   label: 'TOPOLOGY' },
+    { name: 'journal',  icon: 'book-open', label: 'EOD_LOGS' },
+    { name: 'settings', icon: 'settings',  label: 'CONFIG'   },
   ];
 
-  // Responsive dimensions
-  const sidebarWidth = isMobile ? 60 : 72;
-  const iconSize = isMobile ? 20 : 24;
-  const navGap = isMobile ? 20 : 30;
-  const activeIndicatorLeft = isMobile ? -5 : -11;
+  const calculateFontSize = (name: string) => {
+    const length = name.length;
+    if (length <= 5) return FONT.sm;
+    if (length <= 8) return FONT.xs + 1;
+    if (length <= 12) return FONT.xs;
+    return FONT.xs - 1;
+  };
 
-  // Check system health and model status
+  const calculateLetterSpacing = (name: string) => {
+    const length = name.length;
+    if (length <= 5) return 0.5;
+    if (length <= 8) return 0.2;
+    return 0.1;
+  };
+
   const checkSystemStatus = async () => {
-    // 1. Check active model from AsyncStorage
     try {
       const saved = await AsyncStorage.getItem('@system_active_model');
       setActiveModel(saved || 'NONE');
@@ -46,92 +48,59 @@ export default function SideNavigationLayout() {
       setActiveModel('ERR');
     }
 
-    // 2. Check backend health with timeout
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3-second timeout
-      
-      const response = await fetch(`${BACKEND_URL}/api/health`, {
-        signal: controller.signal,
-      });
-      
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const response = await fetch(`${BACKEND_URL}/api/health`, { signal: controller.signal });
       clearTimeout(timeoutId);
-      
-      if (response.ok) {
-        setIsOnline(true);
-      } else {
-        setIsOnline(false);
-      }
+      setIsOnline(response.ok);
     } catch (e) {
       console.error('Health check failed', e);
       setIsOnline(false);
     }
   };
 
-  // Calculate dynamic font size based on model name length
-  const calculateFontSize = (name: string) => {
-    const length = name.length;
-    if (length <= 5) return 13;
-    if (length <= 8) return 11;
-    if (length <= 12) return 9.5;
-    return 8;
-  };
-
-  const calculateLetterSpacing = (name: string) => {
-    const length = name.length;
-    if (length <= 5) return 1;
-    if (length <= 8) return 0.5;
-    return 0.2;
-  };
-
-  // Set up periodic health checks
   useEffect(() => {
-    checkSystemStatus(); // Initial check
-    const interval = setInterval(checkSystemStatus, 10000); // Check every 10 seconds
+    checkSystemStatus();
+    const interval = setInterval(checkSystemStatus, 10000);
     return () => clearInterval(interval);
   }, []);
 
   return (
     <View style={styles.container}>
-      {/* 🛠️ THE SIDEBAR DOCK */}
-      <View style={[styles.sidebar, { width: sidebarWidth }]}>
+      <View style={styles.sidebar}>
         <SafeAreaView style={styles.sidebarInner}>
-          {/* Navigation Stack */}
-          <View style={[styles.navStack, { gap: navGap }]}>
+          <View style={styles.navStack}>
             {navItems.map((item) => {
               const isActive = pathname.includes(item.name);
               return (
                 <Link key={item.name} href={`/(tabs)/${item.name}`} asChild>
                   <TouchableOpacity style={styles.navItem}>
-                    <Ionicons 
-                      name={item.icon as any} 
-                      size={iconSize}
-                      color={isActive ? '#00FF66' : '#444'} 
+                    <Feather
+                      name={item.icon as any}
+                      size={15}
+                      color={isActive ? COLORS.accent : COLORS.textMuted}
                     />
-                    {isActive && <View style={[styles.activeIndicator, { left: activeIndicatorLeft }]} />}
                   </TouchableOpacity>
                 </Link>
               );
             })}
           </View>
 
-          {/* STATUS MODULE AT BOTTOM */}
           <View style={styles.statusModule}>
-            {/* Status Dot */}
             <View style={[
               styles.statusDot,
-              { backgroundColor: isOnline ? '#00FF66' : '#FF2C55' }
+              { backgroundColor: isOnline ? COLORS.accent : COLORS.danger,
+                shadowColor:      isOnline ? COLORS.accent : COLORS.danger },
             ]} />
-            
-            {/* Rotated Model Text */}
             <View style={styles.rotatedTextContainer}>
               <Text style={[
                 styles.modelText,
                 {
-                  color: isOnline ? '#00FF66' : '#FF2C55',
-                  fontSize: calculateFontSize(activeModel),
+                  color:         isOnline ? COLORS.textMuted : COLORS.danger,
+                  fontSize:      calculateFontSize(activeModel),
                   letterSpacing: calculateLetterSpacing(activeModel),
-                }
+                },
               ]}>
                 {activeModel}
               </Text>
@@ -140,7 +109,6 @@ export default function SideNavigationLayout() {
         </SafeAreaView>
       </View>
 
-      {/* 📱 THE MAIN CONTENT AREA */}
       <View style={styles.content}>
         <Slot />
       </View>
@@ -152,69 +120,61 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#000',
+    backgroundColor: COLORS.bg,
   },
   sidebar: {
-    backgroundColor: '#000',
-    borderRightWidth: 2,
-    borderRightColor: '#1a1a1a',
+    width: 44,
+    backgroundColor: COLORS.bg,
+    borderRightWidth: 1,
+    borderRightColor: COLORS.border,
   },
   sidebarInner: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 12,
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
+    paddingHorizontal: 0,
   },
   navStack: {
     alignItems: 'center',
+    gap: 4,
   },
   navItem: {
-    position: 'relative',
-    padding: 12,
-  },
-  activeIndicator: {
-    position: 'absolute',
-    top: '50%',
-    marginTop: -8,
-    width: 12,
-    height: 16,
-    backgroundColor: '#00FF66',
-    borderRightWidth: 2,
-    borderRightColor: '#00FF66',
+    width: 30,
+    height: 30,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: COLORS.bg,
   },
   statusModule: {
     alignItems: 'center',
-    gap: 16,
-    paddingBottom: 16,
-    paddingHorizontal: 8,
-    borderTopWidth: 2,
-    borderTopColor: '#1a1a1a',
-    paddingTop: 16,
+    gap: 8,
+    paddingBottom: 12,
+    paddingHorizontal: 4,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingTop: 12,
   },
   statusDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 3,
-    borderColor: '#1a1a1a',
-    shadowColor: '#00FF66',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     shadowOpacity: 0.8,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowRadius: 4,
+    elevation: 4,
   },
   rotatedTextContainer: {
-    height: 60,
+    height: 48,
     justifyContent: 'center',
     alignItems: 'center',
     transform: [{ rotate: '-90deg' }],
   },
   modelText: {
-    fontFamily: 'Courier New',
-    fontWeight: '800',
+    fontFamily: FONT_FAMILY.mono,
+    fontWeight: '500',
   },
 });

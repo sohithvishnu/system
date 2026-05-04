@@ -7,15 +7,19 @@ if (!__DEV__) {
 
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { AuthProvider, useAuth } from '../context/AuthContext';
+import { ToastProvider } from '../context/ToastContext';
+import { COLORS } from '../constants/theme';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <View style={{ flex: 1, backgroundColor: '#000' }}>
-        <MainStack />
-      </View>
+      <ToastProvider>
+        <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+          <MainStack />
+        </View>
+      </ToastProvider>
     </AuthProvider>
   );
 }
@@ -49,14 +53,22 @@ function MainStack() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center' }}>
-        <ActivityIndicator color="#00FF66" size="large" />
+      <View style={{ flex: 1, backgroundColor: COLORS.bg, justifyContent: 'center' }}>
+        <ActivityIndicator color={COLORS.accent} size="large" />
       </View>
     );
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000' } }}>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: COLORS.bg },
+        animationEnabled: true,
+        animation: 'fade',
+        presentation: 'transparentModal',
+      }}
+    >
       <Stack.Screen name="index" />
       <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
     </Stack>

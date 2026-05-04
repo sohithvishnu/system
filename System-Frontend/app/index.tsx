@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
         shadowRadius: 12,
         elevation: 6,
     },
-    buttonDisabled: { backgroundColor: '#333', opacity: 0.5 },
+    buttonDisabled: { backgroundColor: '#00FF66', opacity: 0.4, borderWidth: 2, borderColor: '#00FF66' },
     buttonContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
     buttonText: { fontWeight: '900', color: '#000', letterSpacing: 1.5, fontSize: 16, textTransform: 'uppercase' },
     switchButton: { paddingVertical: 20, alignItems: 'flex-start' },

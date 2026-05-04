@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Alert, useWindowDimensions, TextInput, Platform, Modal, Linking } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, useWindowDimensions, TextInput, Platform, Modal, Linking } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { COLORS, FONT, FONT_FAMILY, SPACE, RADIUS } from '../../constants/theme';
 import { BACKEND_URL } from '../../constants/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Screen, PageHeader, Section, Card, GhostButton } from '../../components/ui';
+import { Screen, PageHeader, Section, Card, GhostButton, BlinkingCursor } from '../../components/ui';
 import { scale } from '../../utils/responsive';
 
 export default function SettingsScreen() {
@@ -238,7 +238,7 @@ export default function SettingsScreen() {
 
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator color={COLORS.accent} />
+              <BlinkingCursor />
               <Text style={styles.loadingText}>fetching models...</Text>
             </View>
           ) : error ? (

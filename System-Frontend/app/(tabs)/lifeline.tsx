@@ -1,16 +1,16 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
-import { COLORS, ENTITY_COLORS } from '../../constants/theme';
+import { COLORS, ENTITY_COLORS, FONT, FONT_FAMILY, RADIUS, SPACE } from '../../constants/theme';
 import { BACKEND_URL } from '../../constants/config';
 
-type Ticket = { 
-  id: string; 
-  title: string; 
-  dueDate: string; 
-  priority: string; 
+type Ticket = {
+  id: string;
+  title: string;
+  dueDate: string;
+  priority: string;
   status: string;
   entity_type?: string;
   project_id?: string;
@@ -23,20 +23,16 @@ export default function LifelineScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Get today's date in YYYY-MM-DD format
   const getTodayDate = () => {
     const today = new Date();
     return today.toISOString().split('T')[0];
   };
 
-  // Filter tasks for today and sort by time
   const getTodaysTasks = () => {
     const today = getTodayDate();
-    const todaysTasks = tickets.filter(t => 
+    const todaysTasks = tickets.filter(t =>
       t.dueDate?.startsWith(today) && t.status !== 'DONE'
     );
-    
-    // Sort by time (oldest to newest)
     return todaysTasks.sort((a, b) => {
       const timeA = a.dueDate?.split(' ')[1] || '00:00';
       const timeB = b.dueDate?.split(' ')[1] || '00:00';
@@ -48,10 +44,8 @@ export default function LifelineScreen() {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    
     abortControllerRef.current = new AbortController();
     setLoading(true);
-    
     try {
       const response = await fetch(`${BACKEND_URL}/api/tickets?user_id=${user?.id}`, {
         signal: abortControllerRef.current.signal
@@ -89,7 +83,13 @@ export default function LifelineScreen() {
   );
 
   const getEntityColor = (entityType?: string) => {
-    return ENTITY_COLORS[entityType || 'TO_DO'] || COLORS.primary;
+    return ENTITY_COLORS[entityType || 'TO_DO'] || COLORS.accent;
+  };
+
+  const getPriorityColor = (priority: string) => {
+    if (priority === 'high') return COLORS.danger;
+    if (priority === 'medium') return COLORS.warning;
+    return COLORS.accent;
   };
 
   const todaysTasks = getTodaysTasks();
@@ -98,26 +98,26 @@ export default function LifelineScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>DAILY /</Text>
-          <Text style={styles.headerHighlight}>LIFELINE</Text>
+          <Text style={styles.headerTitle}>lifeline</Text>
+          <Text style={styles.headerSubtitle}>~/timeline</Text>
         </View>
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Text style={{ color: '#00FF66', fontWeight: '900', letterSpacing: 2, fontSize: 14 }}>[ SYSTEM_LOADING... ]</Text>
+        <View style={styles.centered}>
+          <Text style={styles.loadingText}>loading...</Text>
         </View>
       ) : todaysTasks.length === 0 ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 }}>
-          <Text style={{ color: '#FFFFFF', fontWeight: '900', letterSpacing: 1, fontSize: 20, marginBottom: 16 }}>[ NO_TASKS_TODAY ]</Text>
-          <Text style={{ color: '#666666', fontWeight: '900', letterSpacing: 1, fontSize: 12, textAlign: 'center' }}>YOU'RE ALL CAUGHT UP FOR NOW.</Text>
+        <View style={styles.centered}>
+          <Text style={styles.emptyTitle}>$ nothing today</Text>
+          <Text style={styles.emptySubtext}>you're all caught up.</Text>
         </View>
       ) : (
-        <ScrollView 
+        <ScrollView
           style={styles.timeline}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#00FF66" />}
-          contentContainerStyle={{ paddingVertical: 16 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.accent} />}
+          contentContainerStyle={{ paddingVertical: SPACE.lg }}
         >
           {todaysTasks.map((task, index) => {
             const entityColor = getEntityColor(task.entity_type);
@@ -125,38 +125,23 @@ export default function LifelineScreen() {
 
             return (
               <View key={task.id} style={styles.timelineItem}>
-                {/* Vertical Timeline Line (except for last item) */}
-                {!isLast && <View style={[styles.timelineLine, { backgroundColor: entityColor }]} />}
-                
-                {/* Timeline Dot */}
+                {!isLast && <View style={[styles.timelineLine, { backgroundColor: COLORS.border }]} />}
                 <View style={[styles.timelineDot, { borderColor: entityColor }]} />
-                
-                {/* Task Card */}
-                <View style={[styles.taskCard, { borderLeftColor: entityColor, borderLeftWidth: 4 }]}>
-                  {/* Header with time and entity badge */}
+                <View style={[styles.taskCard, { borderLeftColor: entityColor }]}>
                   <View style={styles.cardHeader}>
-                    <Text style={styles.timeText}>
-                      {task.dueDate?.split(' ')[1] || '00:00'}
-                    </Text>
+                    <Text style={styles.timeText}>{task.dueDate?.split(' ')[1] || '00:00'}</Text>
                     <Text style={[styles.entityBadge, { color: entityColor }]}>
-                      [ {task.entity_type || 'TO_DO'} ]
+                      {(task.entity_type || 'to_do').toLowerCase().replace('_', ' ')}
                     </Text>
                   </View>
-
-                  {/* Title */}
-                  <Text style={styles.taskTitle}>{task.title.toUpperCase()}</Text>
-
-                  {/* Footer with priority and project */}
+                  <Text style={styles.taskTitle}>{task.title}</Text>
                   <View style={styles.cardFooter}>
-                    <View style={[styles.priorityBadge, getPriorityBackgroundColor(task.priority)]}>
-                      <Text style={[styles.priorityText, { color: getPriorityColor(task.priority) }]}>
-                        {task.priority?.toUpperCase() || 'MEDIUM'}
-                      </Text>
+                    <View style={styles.priorityRow}>
+                      <View style={[styles.priorityDot, { backgroundColor: getPriorityColor(task.priority) }]} />
+                      <Text style={styles.priorityText}>{task.priority?.toLowerCase() || 'medium'}</Text>
                     </View>
                     {task.project_id && (
-                      <Text style={styles.projectText}>
-                        @ {task.project_id.toUpperCase()}
-                      </Text>
+                      <Text style={styles.projectText}>@ {task.project_id.toLowerCase()}</Text>
                     )}
                   </View>
                 </View>
@@ -169,125 +154,50 @@ export default function LifelineScreen() {
   );
 }
 
-const getPriorityColor = (priority: string) => {
-  if (priority === 'high') return COLORS.danger;
-  if (priority === 'medium') return COLORS.warning;
-  return COLORS.success;
-};
-
-const getPriorityBackgroundColor = (priority: string) => {
-  const isHigh = priority === 'high';
-  return {
-    backgroundColor: isHigh ? 'rgba(255, 44, 85, 0.08)' : 'rgba(0, 255, 102, 0.08)',
-    borderColor: isHigh ? '#FF2C55' : '#00FF66',
-  };
-};
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
+  container: { flex: 1, backgroundColor: COLORS.bg },
   header: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 2,
-    borderColor: '#1a1a1a',
-    backgroundColor: '#000000',
+    paddingVertical: SPACE.md, paddingHorizontal: SPACE.lg,
+    borderBottomWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bg,
   },
-  headerTitle: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 2,
-  },
-  headerHighlight: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#00FF66',
-    letterSpacing: -1,
-    marginTop: 4,
-  },
-  timeline: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  timelineItem: {
-    position: 'relative',
-    marginBottom: 32,
-  },
+  headerTitle: { fontSize: FONT.xxl, fontWeight: '500', color: COLORS.textPrimary, fontFamily: FONT_FAMILY.sans },
+  headerSubtitle: { fontSize: FONT.md, color: COLORS.textMuted, fontFamily: FONT_FAMILY.mono, marginTop: 2 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: SPACE.xl },
+  loadingText: { color: COLORS.textMuted, fontSize: FONT.sm, fontFamily: FONT_FAMILY.mono },
+  emptyTitle: { color: COLORS.textMuted, fontSize: FONT.base, fontFamily: FONT_FAMILY.mono, marginBottom: SPACE.xs },
+  emptySubtext: { color: COLORS.textGhost, fontSize: FONT.sm, fontFamily: FONT_FAMILY.mono },
+
+  timeline: { flex: 1, paddingHorizontal: SPACE.lg },
+  timelineItem: { position: 'relative', marginBottom: SPACE.xl + SPACE.sm },
   timelineLine: {
-    position: 'absolute',
-    left: 7,
-    top: 40,
-    bottom: -32,
+    position: 'absolute', left: SPACE.sm - 1,
+    top: SPACE.xl + SPACE.xs, bottom: -(SPACE.xl + SPACE.sm),
     width: 1,
   },
   timelineDot: {
-    position: 'absolute',
-    left: 0,
-    top: 4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#0A0A0A',
-    borderWidth: 3,
+    position: 'absolute', left: 0, top: SPACE.xs,
+    width: SPACE.md + SPACE.xs, height: SPACE.md + SPACE.xs,
+    borderRadius: (SPACE.md + SPACE.xs) / 2,
+    backgroundColor: COLORS.bg, borderWidth: 1.5,
   },
   taskCard: {
-    marginLeft: 40,
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    borderRadius: 0,
-    padding: 16,
+    marginLeft: SPACE.xl + SPACE.md,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1, borderColor: COLORS.borderMid,
+    borderLeftWidth: 1.5,
+    borderRadius: RADIUS.md,
+    padding: SPACE.md,
   },
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: SPACE.sm,
   },
-  timeText: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 14,
-    letterSpacing: 1,
-    fontFamily: 'Courier New',
-  },
-  entityBadge: {
-    fontWeight: '900',
-    fontSize: 10,
-    letterSpacing: 1,
-    fontFamily: 'Courier New',
-  },
-  taskTitle: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-    fontSize: 16,
-    marginBottom: 12,
-    letterSpacing: -0.5,
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  priorityBadge: {
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 0,
-  },
-  priorityText: {
-    fontWeight: '900',
-    fontSize: 10,
-    letterSpacing: 0.5,
-  },
-  projectText: {
-    color: '#666666',
-    fontWeight: '700',
-    fontSize: 11,
-    letterSpacing: 0.5,
-    fontFamily: 'Courier New',
-  },
+  timeText: { color: COLORS.textMuted, fontSize: FONT.md, fontFamily: FONT_FAMILY.mono },
+  entityBadge: { fontSize: FONT.xs, fontFamily: FONT_FAMILY.mono },
+  taskTitle: { color: COLORS.textPrimary, fontWeight: '500', fontSize: FONT.md, marginBottom: SPACE.sm, fontFamily: FONT_FAMILY.sans },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', gap: SPACE.md },
+  priorityRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.xs },
+  priorityDot: { width: 5, height: 5, borderRadius: 3 },
+  priorityText: { color: COLORS.textMuted, fontSize: FONT.xs, fontFamily: FONT_FAMILY.mono },
+  projectText: { color: COLORS.textGhost, fontSize: FONT.xs, fontFamily: FONT_FAMILY.mono },
 });
