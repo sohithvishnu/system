@@ -403,10 +403,10 @@ const styles = StyleSheet.create({
   },
 
   modelsGrid: {
-    gap: SPACE.md,
+    gap: SPACE.sm,
   },
   modelCard: {
-    marginBottom: SPACE.sm,
+    marginBottom: 0,
   },
   modelCardActive: {
     backgroundColor: COLORS.accentTint,

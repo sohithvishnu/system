@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, SafeAreaView, Text, ScrollView } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, SafeAreaView, Text, ScrollView, Dimensions, useWindowDimensions } from 'react-native';
 import { Link, Slot, usePathname } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -12,6 +12,8 @@ export default function SideNavigationLayout() {
   const [isOnline, setIsOnline] = useState<boolean>(false);
   const [activeModel, setActiveModel] = useState<string>('NONE');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { width: screenWidth } = useWindowDimensions();
+  const isDesktop = screenWidth > 768;
 
   const navItems = [
     { name: 'chat',     icon: 'terminal',  label: 'SYSTEM'   },
@@ -70,7 +72,11 @@ export default function SideNavigationLayout() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.sidebar, sidebarCollapsed && styles.sidebarCollapsed]}>
+      <View style={[
+        styles.sidebar, 
+        sidebarCollapsed && styles.sidebarCollapsed,
+        isDesktop && !sidebarCollapsed && styles.sidebarDesktop
+      ]}>
         <SafeAreaView style={styles.sidebarInner}>
           <View style={styles.sidebarHeader}>
             <TouchableOpacity
@@ -162,6 +168,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bg,
     borderRightWidth: 1,
     borderRightColor: COLORS.border,
+  },
+  sidebarDesktop: {
+    width: 280,
   },
   sidebarCollapsed: {
     width: scale(70),
