@@ -11,6 +11,7 @@ export default function SideNavigationLayout() {
   const pathname = usePathname();
   const [isOnline, setIsOnline] = useState<boolean>(false);
   const [activeModel, setActiveModel] = useState<string>('NONE');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const navItems = [
     { name: 'chat',     icon: 'terminal',  label: 'SYSTEM'   },
@@ -69,8 +70,22 @@ export default function SideNavigationLayout() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.sidebar}>
+      <View style={[styles.sidebar, sidebarCollapsed && styles.sidebarCollapsed]}>
         <SafeAreaView style={styles.sidebarInner}>
+          <View style={styles.sidebarHeader}>
+            <TouchableOpacity
+              onPress={() => setSidebarCollapsed(!sidebarCollapsed)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.toggleBtn}
+            >
+              <Feather
+                name={sidebarCollapsed ? 'chevron-right' : 'chevron-left'}
+                size={FONT.md}
+                color={COLORS.textMuted}
+              />
+            </TouchableOpacity>
+          </View>
+
           <ScrollView style={styles.navStack} showsVerticalScrollIndicator={false}>
             {navItems.map((item) => {
               const isActive = pathname.includes(item.name);
@@ -85,43 +100,47 @@ export default function SideNavigationLayout() {
                       size={FONT.md}
                       color={isActive ? COLORS.accent : COLORS.textMuted}
                     />
-                    <Text
-                      style={[
-                        styles.navLabel,
-                        { color: isActive ? COLORS.accent : COLORS.textMuted },
-                      ]}
-                    >
-                      {item.label.toLowerCase()}
-                    </Text>
+                    {!sidebarCollapsed && (
+                      <Text
+                        style={[
+                          styles.navLabel,
+                          { color: isActive ? COLORS.accent : COLORS.textMuted },
+                        ]}
+                      >
+                        {item.label.toLowerCase()}
+                      </Text>
+                    )}
                   </TouchableOpacity>
                 </Link>
               );
             })}
           </ScrollView>
 
-          <View style={styles.statusModule}>
-            <View
-              style={[
-                styles.statusDot,
-                {
-                  backgroundColor: isOnline ? COLORS.accent : COLORS.danger,
-                  shadowColor: isOnline ? COLORS.accent : COLORS.danger,
-                },
-              ]}
-            />
-            <Text
-              style={[
-                styles.modelText,
-                {
-                  color: isOnline ? COLORS.textMuted : COLORS.danger,
-                  fontSize: calculateFontSize(activeModel),
-                  letterSpacing: calculateLetterSpacing(activeModel),
-                },
-              ]}
-            >
-              {activeModel.toLowerCase()}
-            </Text>
-          </View>
+          {!sidebarCollapsed && (
+            <View style={styles.statusModule}>
+              <View
+                style={[
+                  styles.statusDot,
+                  {
+                    backgroundColor: isOnline ? COLORS.accent : COLORS.danger,
+                    shadowColor: isOnline ? COLORS.accent : COLORS.danger,
+                  },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.modelText,
+                  {
+                    color: isOnline ? COLORS.textMuted : COLORS.danger,
+                    fontSize: calculateFontSize(activeModel),
+                    letterSpacing: calculateLetterSpacing(activeModel),
+                  },
+                ]}
+              >
+                {activeModel.toLowerCase()}
+              </Text>
+            </View>
+          )}
         </SafeAreaView>
       </View>
 
@@ -144,11 +163,22 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: COLORS.border,
   },
+  sidebarCollapsed: {
+    width: scale(70),
+  },
   sidebarInner: {
     flex: 1,
     paddingVertical: SPACE.md,
     justifyContent: 'space-between',
     paddingHorizontal: SPACE.md,
+  },
+  sidebarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: SPACE.lg,
+  },
+  toggleBtn: {
+    padding: SPACE.xs,
   },
   navStack: {
     flex: 1,

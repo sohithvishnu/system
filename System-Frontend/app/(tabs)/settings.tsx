@@ -297,7 +297,7 @@ export default function SettingsScreen() {
           <GhostButton 
             label="clear cache" 
             onPress={() => Alert.alert('Clear Cache', 'Cache cleared')}
-            style={{ marginBottom: SPACE.md }}
+            style={{ marginBottom: SPACE.xxl }}
           />
           <GhostButton 
             label="clear history" 
@@ -313,7 +313,7 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   // CONNECTION SECTION
   urlInputContainer: {
-    marginBottom: SPACE.lg,
+    marginBottom: SPACE.xxl,
   },
   urlInput: {
     fontSize: FONT.md,
@@ -325,6 +325,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACE.sm,
+    marginBottom: SPACE.xxl,
   },
   statusDot: {
     width: 5,
@@ -430,7 +431,7 @@ const styles = StyleSheet.create({
   // APPEARANCE SECTION
   promptContainer: {
     padding: 0,
-    marginBottom: SPACE.lg,
+    marginBottom: SPACE.xxl,
   },
   promptTextarea: {
     fontSize: FONT.md,
