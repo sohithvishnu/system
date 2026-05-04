@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, Ale
 import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../context/AuthContext';
 import { COLORS, ENTITY_COLORS, FONT, FONT_FAMILY, RADIUS, SPACE } from '../../constants/theme';
 import { BACKEND_URL } from '../../constants/config';
@@ -24,6 +25,7 @@ export default function LifelineScreen() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeModel, setActiveModel] = useState<string>('NONE');
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const getTodayDate = () => {
@@ -74,15 +76,26 @@ export default function LifelineScreen() {
     fetchTickets();
   }, []);
 
+  const loadActiveModel = useCallback(async () => {
+    try {
+      const saved = await AsyncStorage.getItem('@system_active_model');
+      setActiveModel(saved || 'NONE');
+    } catch (e) {
+      console.error('Failed to load active model', e);
+      setActiveModel('NONE');
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       fetchTickets();
+      loadActiveModel();
       return () => {
         if (abortControllerRef.current) {
           abortControllerRef.current.abort();
         }
       };
-    }, [])
+    }, [loadActiveModel])
   );
 
   const getPriorityColor = (priority: string) => {
@@ -133,7 +146,7 @@ export default function LifelineScreen() {
                     style={styles.backgroundIcon}
                   />
                   <Text style={styles.statusText}>Active Model</Text>
-                  <Text style={styles.modelText}>FunctionGemma</Text>
+                  <Text style={styles.modelText}>{activeModel}</Text>
                 </View>
               </View>
 
