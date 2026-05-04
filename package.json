@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Master boot controller for the ROOT_SYSTEM",
   "scripts": {
-    "boot:mac": "node auto-ip.js && (pkill -f 'python main.py' || true) && (pkill -f 'mkdocs serve' || true) && (pkill -f 'expo start' || true) && sleep 2 && concurrently -c \"green,blue,yellow\" -n \"BACKEND,FRONTEND,DOCS\" \"cd System-Backend && python main.py\" \"cd System-Frontend && npm start -- --tunnel --port 8082 --clear\" \"mkdocs serve --dev-addr 0.0.0.0:8001\"",
+    "boot:mac": "node auto-ip.js && (pkill -f 'python main.py' || true) && (pkill -f 'mkdocs serve' || true) && (pkill -f 'expo start' || true) && sleep 2 && concurrently -c \"green,blue,yellow\" -n \"BACKEND,FRONTEND,DOCS\" \"cd System-Backend && python main.py\" \"cd System-Frontend && npm start -- --tunnel --port 8081 --clear\" \"mkdocs serve --dev-addr 0.0.0.0:8001\"",
     "boot:win": "node auto-ip.js && concurrently -c \"green,blue,yellow\" -n \"BACKEND,FRONTEND,DOCS\" \"cd System-Backend && venv\\Scripts\\activate && python main.py\" \"cd System-Frontend && npx expo start\" \"mkdocs serve --dev-addr 0.0.0.0:8001\"",
     "boot:simple": "node auto-ip.js && concurrently -c \"green,blue,yellow\" -n \"BACKEND,FRONTEND,DOCS\" \"cd System-Backend && python main.py\" \"cd System-Frontend && npx expo start\" \"mkdocs serve --dev-addr 0.0.0.0:8001\"",
     "dev": "cd System-Frontend && npm start"

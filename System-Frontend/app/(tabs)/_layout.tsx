@@ -77,7 +77,7 @@ export default function SideNavigationLayout() {
               return (
                 <Link key={item.name} href={`/(tabs)/${item.name}`} asChild>
                   <TouchableOpacity
-                    style={[styles.navItem, isActive && styles.navItemActive]}
+                    style={StyleSheet.flatten([styles.navItem, isActive && styles.navItemActive])}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
                     <Feather
