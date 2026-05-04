@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, SafeAreaView, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, SafeAreaView, Text, ScrollView } from 'react-native';
 import { Link, Slot, usePathname } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BACKEND_URL } from '../../constants/config';
-import { COLORS, FONT, FONT_FAMILY } from '../../constants/theme';
+import { COLORS, FONT, FONT_FAMILY, SPACE } from '../../constants/theme';
+import { scale } from '../../utils/responsive';
 
 export default function SideNavigationLayout() {
   const pathname = usePathname();
@@ -70,41 +71,56 @@ export default function SideNavigationLayout() {
     <View style={styles.container}>
       <View style={styles.sidebar}>
         <SafeAreaView style={styles.sidebarInner}>
-          <View style={styles.navStack}>
+          <ScrollView style={styles.navStack} showsVerticalScrollIndicator={false}>
             {navItems.map((item) => {
               const isActive = pathname.includes(item.name);
               return (
                 <Link key={item.name} href={`/(tabs)/${item.name}`} asChild>
-                  <TouchableOpacity style={styles.navItem}>
+                  <TouchableOpacity
+                    style={[styles.navItem, isActive && styles.navItemActive]}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
                     <Feather
                       name={item.icon as any}
-                      size={15}
+                      size={FONT.md}
                       color={isActive ? COLORS.accent : COLORS.textMuted}
                     />
+                    <Text
+                      style={[
+                        styles.navLabel,
+                        { color: isActive ? COLORS.accent : COLORS.textMuted },
+                      ]}
+                    >
+                      {item.label.toLowerCase()}
+                    </Text>
                   </TouchableOpacity>
                 </Link>
               );
             })}
-          </View>
+          </ScrollView>
 
           <View style={styles.statusModule}>
-            <View style={[
-              styles.statusDot,
-              { backgroundColor: isOnline ? COLORS.accent : COLORS.danger,
-                shadowColor:      isOnline ? COLORS.accent : COLORS.danger },
-            ]} />
-            <View style={styles.rotatedTextContainer}>
-              <Text style={[
+            <View
+              style={[
+                styles.statusDot,
+                {
+                  backgroundColor: isOnline ? COLORS.accent : COLORS.danger,
+                  shadowColor: isOnline ? COLORS.accent : COLORS.danger,
+                },
+              ]}
+            />
+            <Text
+              style={[
                 styles.modelText,
                 {
-                  color:         isOnline ? COLORS.textMuted : COLORS.danger,
-                  fontSize:      calculateFontSize(activeModel),
+                  color: isOnline ? COLORS.textMuted : COLORS.danger,
+                  fontSize: calculateFontSize(activeModel),
                   letterSpacing: calculateLetterSpacing(activeModel),
                 },
-              ]}>
-                {activeModel}
-              </Text>
-            </View>
+              ]}
+            >
+              {activeModel.toLowerCase()}
+            </Text>
           </View>
         </SafeAreaView>
       </View>
@@ -123,41 +139,50 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bg,
   },
   sidebar: {
-    width: 44,
+    width: scale(280),
     backgroundColor: COLORS.bg,
     borderRightWidth: 1,
     borderRightColor: COLORS.border,
   },
   sidebarInner: {
     flex: 1,
-    alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: SPACE.md,
     justifyContent: 'space-between',
-    paddingHorizontal: 0,
+    paddingHorizontal: SPACE.md,
   },
   navStack: {
-    alignItems: 'center',
-    gap: 4,
+    flex: 1,
+    gap: SPACE.md,
   },
   navItem: {
-    width: 30,
-    height: 30,
+    minHeight: scale(48),
+    paddingVertical: SPACE.md,
+    paddingHorizontal: SPACE.md,
     borderRadius: 6,
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: SPACE.md,
+  },
+  navItemActive: {
+    backgroundColor: COLORS.accentTint,
+  },
+  navLabel: {
+    fontSize: FONT.sm,
+    fontFamily: FONT_FAMILY.mono,
+    fontWeight: '500',
   },
   content: {
     flex: 1,
     backgroundColor: COLORS.bg,
   },
   statusModule: {
-    alignItems: 'center',
-    gap: 8,
-    paddingBottom: 12,
-    paddingHorizontal: 4,
+    alignItems: 'flex-start',
+    gap: SPACE.md,
+    paddingTop: SPACE.lg,
+    paddingBottom: SPACE.md,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-    paddingTop: 12,
+    paddingLeft: SPACE.md,
   },
   statusDot: {
     width: 6,
@@ -176,5 +201,6 @@ const styles = StyleSheet.create({
   modelText: {
     fontFamily: FONT_FAMILY.mono,
     fontWeight: '500',
+    fontSize: FONT.xs,
   },
 });

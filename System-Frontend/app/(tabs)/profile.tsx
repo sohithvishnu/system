@@ -402,9 +402,9 @@ const styles = StyleSheet.create({
   // STATS ROW
   statsRow: {
     flexDirection: 'row',
-    gap: SPACE.md,
+    gap: SPACE.lg,
     paddingHorizontal: SPACE.lg,
-    paddingBottom: SPACE.lg,
+    paddingBottom: SPACE.xxl,
   },
   statCard: {
     flex: 1,
@@ -427,8 +427,8 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACE.md,
-    marginBottom: SPACE.md,
+    gap: SPACE.lg,
+    marginBottom: SPACE.lg,
   },
   actionLabel: {
     flex: 1,

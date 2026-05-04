@@ -313,7 +313,7 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   // CONNECTION SECTION
   urlInputContainer: {
-    marginBottom: SPACE.md,
+    marginBottom: SPACE.lg,
   },
   urlInput: {
     fontSize: FONT.md,
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
 
   // MODEL SECTION
   currentModelPill: {
-    marginBottom: SPACE.md,
+    marginBottom: SPACE.lg,
     backgroundColor: COLORS.surface,
   },
   modelPillContent: {
@@ -430,12 +430,13 @@ const styles = StyleSheet.create({
   // APPEARANCE SECTION
   promptContainer: {
     padding: 0,
+    marginBottom: SPACE.lg,
   },
   promptTextarea: {
     fontSize: FONT.md,
     fontFamily: FONT_FAMILY.mono,
     color: COLORS.textSecondary,
-    padding: SPACE.md,
+    padding: SPACE.lg,
     minHeight: scale(100),
     lineHeight: FONT.md * 1.6,
   },
