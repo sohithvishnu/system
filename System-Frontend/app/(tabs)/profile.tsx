@@ -285,7 +285,7 @@ export default function ProfileScreen() {
             )}
 
             {/* Loading Indicator */}
-            {loading && <ActivityIndicator color="#00FF66" style={{ marginVertical: 12 }} />}
+            {loading && <ActivityIndicator color={COLORS.accent} style={{ marginVertical: SPACE.md }} />}
 
             {/* Modal Actions */}
             <View style={styles.modalActions}>
