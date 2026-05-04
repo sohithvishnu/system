@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert, useWindowDimensions, TextInput, Platform, Modal, Linking } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Alert, useWindowDimensions, TextInput, Platform, Modal, Linking } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
-import { COLORS, BOLD_STYLES } from '../../constants/theme';
+import { COLORS, FONT, FONT_FAMILY, SPACE, RADIUS } from '../../constants/theme';
 import { BACKEND_URL } from '../../constants/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Screen, PageHeader, Section, Card, GhostButton } from '../../components/ui';
+import { scale } from '../../utils/responsive';
 
 export default function SettingsScreen() {
   const { user } = useAuth();
@@ -22,11 +25,6 @@ export default function SettingsScreen() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [promptsLoading, setPromptsLoading] = useState(false);
-  
-  // Documentation status state
-  const [docsServerOnline, setDocsServerOnline] = useState<boolean>(false);
-  const [checkingDocsStatus, setCheckingDocsStatus] = useState(false);
-  const DOCS_URL = 'http://localhost:8001';
 
   const isMobile = screenWidth < 768;
 
@@ -171,96 +169,91 @@ export default function SettingsScreen() {
     }
   };
 
-  // Check if docs server is running
-  const checkDocsStatus = useCallback(async () => {
-    setCheckingDocsStatus(true);
-    try {
-      // Use AbortController for timeout since React Native fetch doesn't support timeout option
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
-      
-      try {
-        const response = await fetch(DOCS_URL, { 
-          method: 'HEAD',
-          signal: controller.signal 
-        });
-        clearTimeout(timeoutId);
-        setDocsServerOnline(response.status < 500);
-      } catch (e: any) {
-        clearTimeout(timeoutId);
-        if (e.name === 'AbortError') {
-          // Timeout occurred
-          setDocsServerOnline(false);
-        } else {
-          throw e;
-        }
-      }
-    } catch (e: any) {
-      console.error("Docs server check failed", e);
-      setDocsServerOnline(false);
-    } finally {
-      setCheckingDocsStatus(false);
-    }
-  }, []);
-
   // Open documentation in browser
   const openDocumentation = async () => {
     try {
-      const canOpen = await Linking.canOpenURL(DOCS_URL);
+      const docsUrl = 'http://localhost:8001';
+      const canOpen = await Linking.canOpenURL(docsUrl);
       if (canOpen) {
-        await Linking.openURL(DOCS_URL);
+        await Linking.openURL(docsUrl);
       } else {
-        Alert.alert(
-          'DOCS_OFFLINE',
-          `Cannot connect to ${DOCS_URL}\n\nRun: mkdocs serve\n\nOr deploy to production server.`,
-          [{ text: 'OK' }]
-        );
+        Alert.alert('ERROR', 'Cannot open documentation URL');
       }
     } catch (e: any) {
-      console.error("Failed to open docs", e);
-      Alert.alert('ERROR', 'Failed to open documentation URL');
+      console.error("Failed to open documentation", e);
+      Alert.alert('ERROR', 'Failed to open documentation');
     }
   };
+
+
 
   useFocusEffect(
     useCallback(() => {
       fetchModels();
       loadActiveModel();
       loadPrompts();
-      checkDocsStatus();
-    }, [fetchModels, loadActiveModel, loadPrompts, checkDocsStatus])
+    }, [fetchModels, loadActiveModel, loadPrompts])
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>SYSTEM /</Text>
-        <Text style={styles.headerHighlight}>CONFIG</Text>
-      </View>
+    <Screen>
+      <PageHeader title="settings" subtitle="~/config" />
 
-      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* AI CORE SELECTION */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>AI_CORE_SELECTION</Text>
+      <ScrollView contentContainerStyle={{ paddingBottom: SPACE.lg }}>
+        {/* CONNECTION SECTION */}
+        <Section label="connection">
+          <Card style={styles.urlInputContainer}>
+            <TextInput
+              style={styles.urlInput}
+              value={BACKEND_URL}
+              editable={false}
+              placeholderTextColor={COLORS.textMuted}
+            />
+          </Card>
+          
+          <GhostButton 
+            label="test connection" 
+            onPress={() => {
+              Alert.alert('Connection Test', `Backend: ${BACKEND_URL}`);
+            }}
+            style={{ marginBottom: SPACE.md }}
+          />
+          
+          <View style={styles.statusIndicator}>
+            <View style={[styles.statusDot, { backgroundColor: COLORS.accent }]} />
+            <Text style={styles.statusText}>connected</Text>
+          </View>
+        </Section>
+
+        {/* MODEL SECTION */}
+        <Section label="model">
+          {activeModel && (
+            <Card style={styles.currentModelPill}>
+              <View style={styles.modelPillContent}>
+                <View style={styles.modelDot} />
+                <Text style={styles.modelPillText}>{activeModel}</Text>
+              </View>
+            </Card>
+          )}
 
           {loading ? (
             <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>[ FETCHING_NEURAL_CORES... ]</Text>
+              <ActivityIndicator color={COLORS.accent} />
+              <Text style={styles.loadingText}>fetching models...</Text>
             </View>
           ) : error ? (
-            <View style={styles.errorBlock}>
-              <Text style={styles.errorTitle}>[ OLLAMA_OFFLINE ]</Text>
-              <Text style={styles.errorMessage}>Please run 'ollama serve' on the host machine.</Text>
-              <Text style={styles.errorDetail}>{error}</Text>
-            </View>
+            <Card style={styles.errorBlock}>
+              <Text style={styles.errorTitle}>connection failed</Text>
+              <Text style={styles.errorMessage}>{error}</Text>
+            </Card>
           ) : models.length === 0 ? (
-            <View style={styles.emptyBlock}>
-              <Text style={styles.emptyText}>NO MODELS AVAILABLE</Text>
-            </View>
+            <Card style={styles.emptyBlock}>
+              <Text style={styles.emptyText}>no models available</Text>
+            </Card>
           ) : (
             <View style={styles.modelsGrid}>
               {models.map((model) => (
-                <TouchableOpacity
+                <Card
                   key={model}
                   style={[
                     styles.modelCard,
@@ -268,613 +261,182 @@ export default function SettingsScreen() {
                   ]}
                   onPress={() => selectModel(model)}
                 >
-                  <Text style={[
-                    styles.modelName,
-                    activeModel === model && styles.modelNameActive
-                  ]}>
-                    {model}
-                  </Text>
-                  {activeModel === model && (
-                    <Text style={styles.activeIndicator}>[ ACTIVE ]</Text>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* PROMPTS MANAGEMENT */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>[ PROMPTS ]</Text>
-          <Text style={styles.directiveDescription}>MANAGE_CUSTOM_AI_DIRECTIVES</Text>
-          
-          {promptsLoading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>[ LOADING_PROMPTS... ]</Text>
-            </View>
-          ) : prompts.length === 0 ? (
-            <View style={styles.emptyBlock}>
-              <Text style={styles.emptyText}>NO_PROMPTS_CREATED</Text>
-            </View>
-          ) : (
-            <View style={styles.promptsList}>
-              {prompts.map((prompt) => (
-                <View key={prompt.id} style={styles.promptCard}>
-                  <TouchableOpacity
-                    style={[
-                      styles.promptSelect,
-                      activePromptId === prompt.id && styles.promptSelectActive,
-                    ]}
-                    onPress={() => activatePrompt(prompt.id)}
-                  >
+                  <View style={styles.modelCardContent}>
                     <Text style={[
-                      styles.promptName,
-                      activePromptId === prompt.id && styles.promptNameActive,
+                      styles.modelName,
+                      activeModel === model && styles.modelNameActive
                     ]}>
-                      {prompt.name}
+                      {model}
                     </Text>
-                    {activePromptId === prompt.id && (
-                      <Text style={styles.activeIndicator}>[ ACTIVE ]</Text>
+                    {activeModel === model && (
+                      <Feather name="check" size={FONT.md} color={COLORS.accent} />
                     )}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.deleteBtn}
-                    onPress={() => deletePrompt(prompt.id)}
-                  >
-                    <Text style={styles.deleteBtnText}>DELETE</Text>
-                  </TouchableOpacity>
-                </View>
+                  </View>
+                </Card>
               ))}
             </View>
           )}
-          
-          <TouchableOpacity
-            style={styles.createBtn}
-            onPress={() => setShowCreateModal(true)}
-          >
-            <Text style={styles.createBtnText}>[ + CREATE_PROMPT ]</Text>
-          </TouchableOpacity>
-        </View>
+        </Section>
 
-        {/* CREATE PROMPT MODAL */}
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={showCreateModal}
-          onRequestClose={() => setShowCreateModal(false)}
-        >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>CREATE NEW PROMPT</Text>
-              
-              <Text style={styles.inputLabel}>PROMPT NAME</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={newPromptName}
-                onChangeText={setNewPromptName}
-                placeholder="e.g., Code Assistant..."
-                placeholderTextColor="#555"
-              />
-              
-              <Text style={styles.inputLabel}>PROMPT CONTENT</Text>
-              <TextInput
-                style={[styles.modalInput, styles.modalTextArea]}
-                value={newPromptContent}
-                onChangeText={setNewPromptContent}
-                placeholder="Define the AI's behavior and instructions..."
-                placeholderTextColor="#555"
-                multiline
-                textAlignVertical="top"
-              />
-              
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  onPress={() => {
-                    setShowCreateModal(false);
-                    setNewPromptName('');
-                    setNewPromptContent('');
-                  }}
-                >
-                  <Text style={styles.cancelBtnText}>CANCEL</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.submitBtn}
-                  onPress={createNewPrompt}
-                >
-                  <Text style={styles.submitBtnText}>CREATE</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
+        {/* APPEARANCE SECTION */}
+        <Section label="appearance">
+          <Card style={styles.promptContainer}>
+            <TextInput
+              style={styles.promptTextarea}
+              placeholder="custom ai directives (monospace, optional)"
+              placeholderTextColor={COLORS.textMuted}
+              multiline
+              textAlignVertical="top"
+              numberOfLines={4}
+            />
+          </Card>
+        </Section>
 
-        {/* SYSTEM DOCUMENTATION */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>[ SYSTEM_DOCUMENTATION ]</Text>
-          <Text style={styles.directiveDescription}>Browse_complete_technical_reference_wiki</Text>
-          
-          <View style={styles.docsStatusCard}>
-            <View style={styles.docsStatusRow}>
-              <View style={styles.docsStatusIndicator}>
-                <View style={[styles.statusDot, docsServerOnline ? styles.statusDotOnline : styles.statusDotOffline]} />
-                <Text style={styles.docsStatusText}>
-                  {checkingDocsStatus ? 'CHECKING...' : docsServerOnline ? 'ONLINE' : 'OFFLINE'}
-                </Text>
-              </View>
-              <Text style={styles.docsStatusUrl}>{DOCS_URL}</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={styles.docsOpenBtn}
-            onPress={openDocumentation}
-            disabled={checkingDocsStatus}
-          >
-            <Text style={styles.docsOpenBtnText}>
-              {checkingDocsStatus ? '[ CONNECTING... ]' : '[ OPEN_DOCUMENTATION ]'}
-            </Text>
-          </TouchableOpacity>
-
-          <View style={styles.docsInfoBox}>
-            <Text style={styles.docsInfoTitle}>[ LOCAL_DEVELOPMENT ]</Text>
-            <Text style={styles.docsInfoText}>mkdocs serve</Text>
-            <Text style={[styles.docsInfoTitle, { marginTop: 8 }]}>[ PRODUCTION ]</Text>
-            <Text style={styles.docsInfoText}>docker run -p 8000:8080 nginx</Text>
-          </View>
-        </View>
-
-        {/* SYSTEM STATUS */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>SYSTEM_STATUS</Text>
-          <View style={styles.statusCard}>
-            <View style={styles.statusRow}>
-              <Text style={styles.statusLabel}>BACKEND_URL</Text>
-              <Text style={styles.statusValue}>{BACKEND_URL}</Text>
-            </View>
-            <View style={[styles.statusRow, { borderTopWidth: 1, borderTopColor: '#1a1a1a', marginTop: 12, paddingTop: 12 }]}>
-              <Text style={styles.statusLabel}>ACTIVE_MODEL</Text>
-              <Text style={styles.statusValue}>{activeModel || 'NOT_SELECTED'}</Text>
-            </View>
-          </View>
-        </View>
+        {/* DATA SECTION */}
+        <Section label="data">
+          <GhostButton 
+            label="clear cache" 
+            onPress={() => Alert.alert('Clear Cache', 'Cache cleared')}
+            style={{ marginBottom: SPACE.md }}
+          />
+          <GhostButton 
+            label="clear history" 
+            onPress={() => Alert.alert('Clear History', 'History cleared')}
+            danger
+          />
+        </Section>
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
-  header: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 2,
-    borderColor: '#1a1a1a',
-    backgroundColor: '#000000',
+  // CONNECTION SECTION
+  urlInputContainer: {
+    marginBottom: SPACE.md,
   },
-  headerTitle: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 2,
-  },
-  headerHighlight: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#00FF66',
-    letterSpacing: -1,
-    marginTop: 4,
-  },
-  content: { flex: 1 },
-
-  /* Sections */
-  section: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderColor: '#1a1a1a',
-  },
-  sectionTitle: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 13,
-    letterSpacing: 2,
-    marginBottom: 16,
-    textTransform: 'uppercase',
+  urlInput: {
+    fontSize: FONT.md,
+    fontFamily: FONT_FAMILY.mono,
+    color: COLORS.textPrimary,
   },
 
-  /* Loading State */
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+  },
+  statusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  statusText: {
+    fontSize: FONT.sm,
+    fontFamily: FONT_FAMILY.mono,
+    color: COLORS.textSecondary,
+  },
+
+  // MODEL SECTION
+  currentModelPill: {
+    marginBottom: SPACE.md,
+    backgroundColor: COLORS.surface,
+  },
+  modelPillContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+  },
+  modelDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: COLORS.accent,
+  },
+  modelPillText: {
+    fontSize: FONT.md,
+    fontFamily: FONT_FAMILY.mono,
+    color: COLORS.textPrimary,
+  },
+
   loadingContainer: {
-    paddingVertical: 32,
+    paddingVertical: SPACE.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACE.md,
+  },
+  loadingText: {
+    fontSize: FONT.sm,
+    fontFamily: FONT_FAMILY.mono,
+    color: COLORS.textSecondary,
+  },
+
+  errorBlock: {
+    backgroundColor: 'rgba(255, 44, 85, 0.06)',
+    borderColor: COLORS.danger,
+    padding: SPACE.md,
+  },
+  errorTitle: {
+    color: COLORS.danger,
+    fontWeight: '600',
+    fontSize: FONT.md,
+    fontFamily: FONT_FAMILY.mono,
+    marginBottom: SPACE.xs,
+  },
+  errorMessage: {
+    color: COLORS.textSecondary,
+    fontWeight: '400',
+    fontSize: FONT.sm,
+    fontFamily: FONT_FAMILY.mono,
+  },
+
+  emptyBlock: {
+    paddingVertical: SPACE.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  loadingText: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 12,
-    letterSpacing: 2,
-  },
-
-  /* Error State */
-  errorBlock: {
-    backgroundColor: 'rgba(255, 44, 85, 0.08)',
-    borderWidth: 2,
-    borderColor: '#FF2C55',
-    borderRadius: 0,
-    padding: 16,
-  },
-  errorTitle: {
-    color: '#FF2C55',
-    fontWeight: '900',
-    fontSize: 14,
-    letterSpacing: 1,
-    marginBottom: 8,
-  },
-  errorMessage: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 12,
-    marginBottom: 8,
-  },
-  errorDetail: {
-    color: '#999999',
-    fontWeight: '700',
-    fontSize: 11,
-    fontFamily: 'Courier',
-  },
-
-  /* Empty State */
-  emptyBlock: {
-    paddingVertical: 32,
-    alignItems: 'center',
-  },
   emptyText: {
-    color: '#666666',
-    fontWeight: '900',
-    fontSize: 12,
-    letterSpacing: 1,
+    color: COLORS.textMuted,
+    fontFamily: FONT_FAMILY.mono,
+    fontSize: FONT.sm,
   },
 
-  /* Models Grid */
   modelsGrid: {
-    gap: 12,
+    gap: SPACE.md,
   },
   modelCard: {
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    borderRadius: 0,
-    padding: 24,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    marginBottom: SPACE.sm,
   },
   modelCardActive: {
-    backgroundColor: '#00FF66',
-    borderColor: '#00FF66',
+    backgroundColor: COLORS.accentTint,
+    borderColor: 'rgba(0,255,102,0.18)',
+  },
+  modelCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   modelName: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-    fontSize: 13,
-    letterSpacing: 0.5,
-    fontFamily: 'Courier',
-    flex: 1,
-  },
-  modelNameActive: {
-    color: '#000000',
-  },
-  activeIndicator: {
-    color: '#000000',
-    fontWeight: '900',
-    fontSize: 10,
-    letterSpacing: 1,
-    marginLeft: 12,
-  },
-
-  /* Status Card */
-  statusCard: {
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    borderRadius: 0,
-    padding: 16,
-  },
-  statusRow: {
-    marginBottom: 12,
-  },
-  statusLabel: {
-    color: '#666666',
-    fontWeight: '900',
-    fontSize: 10,
-    letterSpacing: 1,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  statusValue: {
-    color: '#00FF66',
-    fontWeight: '700',
-    fontSize: 12,
-    letterSpacing: 0.5,
-    fontFamily: 'Courier',
-  },
-
-  /* Directive Input Styles */
-  directiveDescription: {
-    color: '#888',
-    fontWeight: '600',
-    fontSize: 11,
-    letterSpacing: 1,
-    marginBottom: 12,
-    fontFamily: 'Courier New',
-  },
-  directiveInput: {
-    backgroundColor: '#000000',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    borderRadius: 0,
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontFamily: 'Courier New',
-    padding: 16,
-    minHeight: 150,
-    marginBottom: 16,
+    fontSize: FONT.md,
+    fontFamily: FONT_FAMILY.mono,
+    color: COLORS.textPrimary,
     fontWeight: '500',
   },
-  directiveInputFocused: {
-    borderColor: '#00FF66',
-    backgroundColor: '#0A0A0A',
-  },
-  directiveBtn: {
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#00FF66',
-    borderRadius: 0,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-  },
-  directiveBtnText: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 11,
-    letterSpacing: 2,
-    fontFamily: 'Courier New',
-  },
-
-  /* Prompts List */
-  promptsList: {
-    gap: 10,
-    marginBottom: 16,
-  },
-  promptCard: {
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    borderRadius: 0,
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  promptSelect: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  promptSelectActive: {
-    backgroundColor: '#00FF66',
-    borderColor: '#00FF66',
-  },
-  promptName: {
-    color: '#FFFFFF',
+  modelNameActive: {
+    color: COLORS.accent,
     fontWeight: '600',
-    fontSize: 12,
-    fontFamily: 'Courier',
-  },
-  promptNameActive: {
-    color: '#000000',
-    fontWeight: '900',
-  },
-  deleteBtn: {
-    backgroundColor: '#FF2C55',
-    borderWidth: 2,
-    borderColor: '#FF2C55',
-    borderRadius: 0,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginLeft: 8,
-  },
-  deleteBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-    fontSize: 10,
-    letterSpacing: 1,
-  },
-  createBtn: {
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#00FF66',
-    borderRadius: 0,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  createBtnText: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 11,
-    letterSpacing: 2,
-    fontFamily: 'Courier New',
   },
 
-  /* Modal */
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    justifyContent: 'flex-end',
+  // APPEARANCE SECTION
+  promptContainer: {
+    padding: 0,
   },
-  modalContent: {
-    backgroundColor: '#000000',
-    borderTopWidth: 2,
-    borderColor: '#00FF66',
-    padding: 20,
-    minHeight: 400,
-  },
-  modalTitle: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 16,
-    letterSpacing: 2,
-    marginBottom: 20,
-  },
-  inputLabel: {
-    color: '#888',
-    fontWeight: '600',
-    fontSize: 11,
-    letterSpacing: 1,
-    marginBottom: 8,
-    marginTop: 12,
-    fontFamily: 'Courier New',
-  },
-  modalInput: {
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    borderRadius: 0,
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontFamily: 'Courier New',
-    padding: 12,
-    marginBottom: 4,
-  },
-  modalTextArea: {
-    minHeight: 120,
-    textAlignVertical: 'top',
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 20,
-  },
-  cancelBtn: {
-    flex: 1,
-    backgroundColor: '#2C2C2C',
-    borderWidth: 2,
-    borderColor: '#666',
-    borderRadius: 0,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  cancelBtnText: {
-    color: '#888',
-    fontWeight: '900',
-    fontSize: 11,
-    letterSpacing: 1,
-  },
-  submitBtn: {
-    flex: 1,
-    backgroundColor: '#00FF66',
-    borderWidth: 2,
-    borderColor: '#00FF66',
-    borderRadius: 0,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  submitBtnText: {
-    color: '#000000',
-    fontWeight: '900',
-    fontSize: 11,
-    letterSpacing: 1,
-  },
-
-  /* Documentation Section */
-  docsStatusCard: {
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    borderRadius: 0,
-    padding: 16,
-    marginBottom: 12,
-  },
-  docsStatusRow: {
-    flexDirection: 'column',
-    gap: 8,
-  },
-  docsStatusIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 0,
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-  },
-  statusDotOnline: {
-    backgroundColor: '#00FF66',
-    borderColor: '#00FF66',
-  },
-  statusDotOffline: {
-    backgroundColor: '#2C2C2C',
-    borderColor: '#FF2C55',
-  },
-  docsStatusText: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 11,
-    letterSpacing: 1,
-    fontFamily: 'Courier',
-  },
-  docsStatusUrl: {
-    color: '#888',
-    fontFamily: 'Courier',
-    fontSize: 11,
-    letterSpacing: 0.5,
-  },
-  docsOpenBtn: {
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#00FF66',
-    borderRadius: 0,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  docsOpenBtnText: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 11,
-    letterSpacing: 2,
-    fontFamily: 'Courier New',
-  },
-  docsInfoBox: {
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    borderRadius: 0,
-    padding: 12,
-  },
-  docsInfoTitle: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 10,
-    letterSpacing: 1,
-    fontFamily: 'Courier',
-    marginBottom: 4,
-  },
-  docsInfoText: {
-    color: '#888',
-    fontFamily: 'Courier',
-    fontSize: 10,
-    letterSpacing: 0.5,
+  promptTextarea: {
+    fontSize: FONT.md,
+    fontFamily: FONT_FAMILY.mono,
+    color: COLORS.textSecondary,
+    padding: SPACE.md,
+    minHeight: scale(100),
+    lineHeight: FONT.md * 1.6,
   },
 });

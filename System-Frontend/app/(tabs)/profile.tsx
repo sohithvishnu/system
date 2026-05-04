@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, ScrollView, Modal, ActivityIndicator, Platform } from 'react-native';
-import { useAuth } from '../../context/AuthContext';
-import { COLORS, BOLD_STYLES } from '../../constants/theme';
-import { BACKEND_URL } from '../../constants/config';
-import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ScrollView, Modal, ActivityIndicator, Platform } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useAuth } from '../../context/AuthContext';
+import { COLORS, FONT, FONT_FAMILY, SPACE, RADIUS } from '../../constants/theme';
+import { BACKEND_URL } from '../../constants/config';
+import { Screen, PageHeader, Section, Card, GhostButton } from '../../components/ui';
+import { scale } from '../../utils/responsive';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -135,9 +137,9 @@ export default function ProfileScreen() {
         {
           text: 'CONFIRM',
           onPress: () => {
-            console.error('[Profile] Logout initiated...');
+            console.log('[Profile] Logout initiated...');
             logout().then(() => {
-              console.error('[Profile] Logout completed, gatekeeper will redirect');
+              console.log('[Profile] Logout completed, gatekeeper will redirect');
             }).catch((error: any) => {
               console.error('[Profile] Logout error:', error);
               Alert.alert('ERROR', 'Failed to logout');
@@ -150,10 +152,10 @@ export default function ProfileScreen() {
   };
 
   const confirmWebLogout = () => {
-    console.error('[Profile] Logout initiated via modal...');
+    console.log('[Profile] Logout initiated via modal...');
     setShowLogoutModal(false);
     logout().then(() => {
-      console.error('[Profile] Logout completed, gatekeeper will redirect');
+      console.log('[Profile] Logout completed, gatekeeper will redirect');
     }).catch((error: any) => {
       console.error('[Profile] Logout error:', error);
       if (Platform.OS !== 'web') {
@@ -165,70 +167,56 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>PROFILE / MANAGEMENT</Text>
-        <Text style={styles.headerSubtitle}>USER_SETTINGS</Text>
-      </View>
+    <Screen>
+      <PageHeader title="profile" subtitle={"~/@" + user.username} />
 
-      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* USER INFO SECTION */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>ACCOUNT / INFORMATION</Text>
-          <View style={styles.infoCard}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>USERNAME</Text>
-              <Text style={styles.infoValue}>{user.username.toUpperCase()}</Text>
-            </View>
-            <View style={[styles.infoRow, { borderTopWidth: 1, borderTopColor: '#1a1a1a', paddingTop: 16, marginTop: 16 }]}>
-              <Text style={styles.infoLabel}>USER_ID</Text>
-              <Text style={styles.infoValue}>{user.id}</Text>
-            </View>
+      <ScrollView contentContainerStyle={{ paddingBottom: SPACE.lg }}>
+        {/* USER CARD */}
+        <View style={styles.userCardContainer}>
+          <View style={styles.avatarContainer}>
+            <Text style={styles.avatarText}>{user.username.charAt(0).toUpperCase()}</Text>
+          </View>
+          <View style={styles.userInfoContainer}>
+            <Text style={styles.usernameText}>{user.username}</Text>
+            <Text style={styles.userIdText} numberOfLines={1}>{user.id}</Text>
           </View>
         </View>
 
-        {/* STATISTICS SECTION */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>WORKSPACE / STATISTICS</Text>
-          <View style={styles.statsContainer}>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{userStats.totalTasks || 0}</Text>
-              <Text style={styles.statLabel}>TOTAL_TASKS</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{userStats.activeTasks || 0}</Text>
-              <Text style={styles.statLabel}>ACTIVE</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{userStats.completedTasks || 0}</Text>
-              <Text style={styles.statLabel}>COMPLETED</Text>
-            </View>
-          </View>
+        {/* STATS ROW */}
+        <View style={styles.statsRow}>
+          <Card style={styles.statCard}>
+            <Text style={styles.statValue}>{userStats.totalTasks || 0}</Text>
+            <Text style={styles.statLabel}>total</Text>
+          </Card>
+          <Card style={styles.statCard}>
+            <Text style={styles.statValue}>{userStats.completedTasks || 0}</Text>
+            <Text style={styles.statLabel}>done</Text>
+          </Card>
+          <Card style={styles.statCard}>
+            <Text style={styles.statValue}>{userStats.activeTasks || 0}</Text>
+            <Text style={styles.statLabel}>active</Text>
+          </Card>
         </View>
 
-        {/* SECURITY SECTION */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>SECURITY / SETTINGS</Text>
-          <TouchableOpacity 
-            style={styles.settingBtn}
+        {/* ACCOUNT SECTION */}
+        <Section label="account">
+          <Card
+            style={styles.actionRow}
             onPress={() => setShowChangePassword(true)}
           >
-            <Ionicons name="lock-closed" size={20} color="#00FF66" />
-            <Text style={styles.settingBtnText}>CHANGE_PASSWORD</Text>
-            <Ionicons name="chevron-forward" size={20} color="#555" />
-          </TouchableOpacity>
-        </View>
-
-        {/* LOGOUT SECTION */}
-        <View style={styles.section}>
-          <TouchableOpacity 
-            style={styles.logoutBtn}
+            <Feather name="lock" size={FONT.md} color={COLORS.textSecondary} />
+            <Text style={styles.actionLabel}>change password</Text>
+            <Feather name="chevron-right" size={FONT.md} color={COLORS.textSecondary} style={{ marginLeft: 'auto' }} />
+          </Card>
+          <Card
+            style={[styles.actionRow, styles.dangerRow]}
             onPress={handleLogout}
           >
-            <Ionicons name="log-out" size={20} color="#FF2C55" />
-            <Text style={styles.logoutBtnText}>LOGOUT_SESSION</Text>
-          </TouchableOpacity>
-        </View>
+            <Feather name="log-out" size={FONT.md} color={COLORS.danger} />
+            <Text style={[styles.actionLabel, { color: COLORS.danger }]}>log out</Text>
+            <Feather name="chevron-right" size={FONT.md} color={COLORS.danger} style={{ marginLeft: 'auto' }} />
+          </Card>
+        </Section>
       </ScrollView>
 
       {/* CHANGE PASSWORD MODAL */}
@@ -251,7 +239,7 @@ export default function ProfileScreen() {
                 style={styles.eyeIcon}
                 onPress={() => setShowOldPw(!showOldPw)}
               >
-                <Ionicons name={showOldPw ? 'eye' : 'eye-off'} size={20} color="#00FF66" />
+                <Feather name={showOldPw ? 'eye' : 'eye-off'} size={FONT.md} color={COLORS.accent} />
               </TouchableOpacity>
             </View>
 
@@ -269,7 +257,7 @@ export default function ProfileScreen() {
                 style={styles.eyeIcon}
                 onPress={() => setShowNewPw(!showNewPw)}
               >
-                <Ionicons name={showNewPw ? 'eye' : 'eye-off'} size={20} color="#00FF66" />
+                <Feather name={showNewPw ? 'eye' : 'eye-off'} size={FONT.md} color={COLORS.accent} />
               </TouchableOpacity>
             </View>
 
@@ -287,7 +275,7 @@ export default function ProfileScreen() {
                 style={styles.eyeIcon}
                 onPress={() => setShowConfirmPw(!showConfirmPw)}
               >
-                <Ionicons name={showConfirmPw ? 'eye' : 'eye-off'} size={20} color="#00FF66" />
+                <Feather name={showConfirmPw ? 'eye' : 'eye-off'} size={FONT.md} color={COLORS.accent} />
               </TouchableOpacity>
             </View>
 
@@ -329,7 +317,7 @@ export default function ProfileScreen() {
         <View style={styles.logoutModalOverlay}>
           <View style={styles.logoutModalContent}>
             <View style={styles.logoutModalHeader}>
-              <Ionicons name="log-out" size={32} color="#FF2C55" />
+              <Feather name="log-out" size={FONT.xl} color={COLORS.danger} />
               <Text style={styles.logoutModalTitle}>EXIT SYSTEM</Text>
             </View>
             
@@ -353,129 +341,250 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  header: { padding: 24, borderBottomWidth: 2, borderColor: '#1a1a1a' },
-  headerTitle: { color: '#FFF', fontWeight: '900', fontSize: 28, letterSpacing: 1, fontFamily: 'Courier New' },
-  headerSubtitle: { color: '#00FF66', fontWeight: '900', fontSize: 12, marginTop: 4, letterSpacing: 2 },
-  content: { flex: 1 },
-  section: { padding: 24, borderBottomWidth: 1, borderColor: '#1a1a1a' },
-  sectionTitle: { color: '#00FF66', fontWeight: '900', fontSize: 13, letterSpacing: 2, marginBottom: 16, fontFamily: 'Courier New' },
-  
-  // INFO CARD
-  infoCard: { backgroundColor: '#0A0A0A', borderWidth: 2, borderColor: '#1a1a1a', borderRadius: 0, padding: 16 },
-  infoRow: { marginBottom: 16 },
-  infoLabel: { color: '#666', fontWeight: '900', fontSize: 10, letterSpacing: 1, marginBottom: 8, fontFamily: 'Courier New' },
-  infoValue: { color: '#FFF', fontWeight: '900', fontSize: 14, letterSpacing: 0.5 },
+  // USER CARD
+  userCardContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.lg,
+    gap: SPACE.md,
+  },
+  avatarContainer: {
+    width: scale(48),
+    height: scale(48),
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderMid,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: FONT.xl,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+  },
+  userInfoContainer: {
+    flex: 1,
+  },
+  usernameText: {
+    fontSize: FONT.lg,
+    fontWeight: '500',
+    color: COLORS.textPrimary,
+    fontFamily: FONT_FAMILY.sans,
+  },
+  userIdText: {
+    fontSize: FONT.sm,
+    fontFamily: FONT_FAMILY.mono,
+    color: COLORS.textGhost,
+    marginTop: SPACE.xs,
+  },
 
-  // STATS
-  statsContainer: { flexDirection: 'row', gap: 12 },
-  statCard: { flex: 1, backgroundColor: '#0A0A0A', borderWidth: 2, borderColor: '#00FF66', borderRadius: 0, padding: 16, alignItems: 'center' },
-  statValue: { color: '#00FF66', fontWeight: '900', fontSize: 28, marginBottom: 8 },
-  statLabel: { color: '#666', fontWeight: '900', fontSize: 10, letterSpacing: 1 },
+  // STATS ROW
+  statsRow: {
+    flexDirection: 'row',
+    gap: SPACE.md,
+    paddingHorizontal: SPACE.lg,
+    paddingBottom: SPACE.lg,
+  },
+  statCard: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statValue: {
+    fontSize: FONT.xl,
+    fontWeight: '600',
+    color: COLORS.accent,
+    marginBottom: SPACE.xs,
+  },
+  statLabel: {
+    fontSize: FONT.sm,
+    fontFamily: FONT_FAMILY.mono,
+    color: COLORS.textSecondary,
+  },
 
-  // SETTINGS BUTTON
-  settingBtn: { backgroundColor: '#0A0A0A', borderWidth: 2, borderColor: '#1a1a1a', borderRadius: 0, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 16 },
-  settingBtnText: { flex: 1, color: '#FFF', fontWeight: '900', fontSize: 14 },
-
-  // LOGOUT BUTTON
-  logoutBtn: { backgroundColor: '#0A0A0A', borderWidth: 2, borderColor: '#FF2C55', borderRadius: 0, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 16 },
-  logoutBtnText: { flex: 1, color: '#FF2C55', fontWeight: '900', fontSize: 14 },
+  // ACTION ROWS
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.md,
+    marginBottom: SPACE.md,
+  },
+  actionLabel: {
+    flex: 1,
+    fontSize: FONT.md,
+    fontFamily: FONT_FAMILY.mono,
+    color: COLORS.textSecondary,
+  },
+  dangerRow: {
+    marginBottom: 0,
+  },
 
   // MODAL
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { width: '88%', backgroundColor: '#0A0A0A', padding: 32, borderRadius: 0, borderWidth: 2, borderColor: '#1a1a1a' },
-  modalTitle: { color: '#00FF66', fontWeight: '900', fontSize: 22, marginBottom: 20, letterSpacing: 1 },
+  modalOverlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.95)', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  modalContent: { 
+    width: '88%', 
+    backgroundColor: COLORS.surface, 
+    padding: SPACE.lg, 
+    borderRadius: RADIUS.md, 
+    borderWidth: 1, 
+    borderColor: COLORS.borderMid 
+  },
+  modalTitle: { 
+    color: COLORS.accent, 
+    fontWeight: '600', 
+    fontSize: FONT.lg, 
+    marginBottom: SPACE.md, 
+    fontFamily: FONT_FAMILY.mono,
+  },
   
   // PASSWORD INPUTS
-  passwordInputWrapper: { position: 'relative', marginBottom: 16 },
-  modalInput: { backgroundColor: '#000', color: '#FFF', borderRadius: 0, padding: 20, paddingRight: 52, marginBottom: 0, borderWidth: 2, borderColor: '#1a1a1a', fontWeight: '700', fontFamily: 'Courier New' },
-  eyeIcon: { position: 'absolute', right: 12, top: '50%', transform: [{ translateY: -10 }] },
+  passwordInputWrapper: { 
+    position: 'relative', 
+    marginBottom: SPACE.md 
+  },
+  modalInput: { 
+    backgroundColor: COLORS.bg, 
+    color: COLORS.textPrimary, 
+    borderRadius: RADIUS.sm, 
+    padding: SPACE.md, 
+    paddingRight: SPACE.lg + SPACE.md, 
+    marginBottom: 0, 
+    borderWidth: 1, 
+    borderColor: COLORS.borderMid, 
+    fontWeight: '400', 
+    fontFamily: FONT_FAMILY.mono,
+    fontSize: FONT.md,
+  },
+  eyeIcon: { 
+    position: 'absolute', 
+    right: SPACE.md, 
+    top: '50%', 
+    transform: [{ translateY: -FONT.md / 2 }] 
+  },
   
   // ERROR TEXT
-  errorText: { color: '#FF2C55', fontWeight: '900', fontSize: 12, marginBottom: 16, paddingHorizontal: 4 },
+  errorText: { 
+    color: COLORS.danger, 
+    fontWeight: '600', 
+    fontSize: FONT.sm, 
+    marginBottom: SPACE.md, 
+    paddingHorizontal: SPACE.xs 
+  },
 
   // MODAL ACTIONS
-  modalActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, gap: 16 },
-  cancelText: { color: '#666', fontWeight: '900', fontSize: 13, paddingVertical: 16, paddingHorizontal: 24 },
-  confirmBtn: { flex: 1, backgroundColor: '#00FF66', borderRadius: 0, paddingVertical: 20, alignItems: 'center' },
-  confirmBtnText: { color: '#000', fontWeight: '900', fontSize: 13, letterSpacing: 1 },
+  modalActions: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginTop: SPACE.lg, 
+    gap: SPACE.md 
+  },
+  cancelText: { 
+    color: COLORS.textSecondary, 
+    fontWeight: '500', 
+    fontSize: FONT.md, 
+    paddingVertical: SPACE.sm, 
+    paddingHorizontal: SPACE.md,
+    fontFamily: FONT_FAMILY.mono,
+  },
+  confirmBtn: { 
+    flex: 1, 
+    backgroundColor: COLORS.accent, 
+    borderRadius: RADIUS.sm, 
+    paddingVertical: SPACE.md, 
+    alignItems: 'center' 
+  },
+  confirmBtnText: { 
+    color: COLORS.bg, 
+    fontWeight: '600', 
+    fontSize: FONT.md,
+    fontFamily: FONT_FAMILY.mono,
+  },
 
-  // LOGOUT MODAL (BRANDED)
+  // LOGOUT MODAL
   logoutModalOverlay: { 
     flex: 1, 
     backgroundColor: 'rgba(0,0,0,0.95)', 
     justifyContent: 'center', 
     alignItems: 'center',
-    padding: 16
+    padding: SPACE.md
   },
   logoutModalContent: { 
     width: '100%',
-    maxWidth: 420,
-    backgroundColor: '#0A0A0A', 
-    borderWidth: 2,
-    borderColor: '#FF2C55',
-    borderRadius: 0,
-    padding: 32,
+    maxWidth: scale(420),
+    backgroundColor: COLORS.surface, 
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+    borderRadius: RADIUS.md,
+    padding: SPACE.lg,
     alignItems: 'center'
   },
   logoutModalHeader: {
     alignItems: 'center',
-    marginBottom: 24,
-    gap: 16
+    marginBottom: SPACE.lg,
+    gap: SPACE.md
   },
   logoutModalTitle: { 
-    color: '#FF2C55', 
-    fontWeight: '900', 
-    fontSize: 28,
-    letterSpacing: 2
+    color: COLORS.danger, 
+    fontWeight: '600', 
+    fontSize: FONT.lg,
+    fontFamily: FONT_FAMILY.mono,
   },
   logoutModalMessage: {
-    color: '#A0A0A0',
-    fontWeight: '700',
-    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontWeight: '400',
+    fontSize: FONT.md,
     textAlign: 'center',
-    marginBottom: 32,
-    lineHeight: 20
+    marginBottom: SPACE.lg,
+    lineHeight: FONT.md * 1.5
   },
   logoutModalActions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: SPACE.md,
     width: '100%',
-    marginTop: 24
+    marginTop: SPACE.lg
   },
   logoutCancelBtn: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    borderRadius: 0,
-    paddingVertical: 16,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderMid,
+    borderRadius: RADIUS.sm,
+    paddingVertical: SPACE.md,
     alignItems: 'center'
   },
   logoutCancelText: {
-    color: '#666',
-    fontWeight: '900',
-    fontSize: 12,
-    letterSpacing: 1
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+    fontSize: FONT.md,
+    fontFamily: FONT_FAMILY.mono,
   },
   logoutConfirmBtn: {
     flex: 1,
-    backgroundColor: '#FF2C55',
-    borderWidth: 2,
-    borderColor: '#FF2C55',
-    borderRadius: 0,
-    paddingVertical: 16,
+    backgroundColor: COLORS.danger,
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+    borderRadius: RADIUS.sm,
+    paddingVertical: SPACE.md,
     alignItems: 'center'
   },
   logoutConfirmText: {
-    color: '#000',
-    fontWeight: '900',
-    fontSize: 12,
-    letterSpacing: 1
+    color: COLORS.white,
+    fontWeight: '600',
+    fontSize: FONT.md,
+    fontFamily: FONT_FAMILY.mono,
   }
 });
+
