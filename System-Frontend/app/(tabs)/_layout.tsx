@@ -54,8 +54,11 @@ export default function SideNavigationLayout() {
     return () => clearInterval(interval);
   }, []);
 
-  const getIconSize = () => isRail ? FONT.xxl : FONT.md;
-  const getIconColor = (isActive: boolean) => isActive ? COLORS.accent : (isRail ? COLORS.textGhost : COLORS.textMuted);
+  const getIconSize = () => isRail ? scale(22) : FONT.md;
+  const getIconColor = (isActive: boolean) => {
+    if (isRail) return isActive ? COLORS.accent : COLORS.textGhost;
+    return isActive ? COLORS.accent : COLORS.textMuted;
+  };
   const showLabel = !sidebarCollapsed && !isRail;
 
   return (
@@ -101,16 +104,16 @@ export default function SideNavigationLayout() {
 const styles = StyleSheet.create({
   container: { flex: 1, flexDirection: 'row', backgroundColor: COLORS.bg },
   sidebar: { width: scale(280), backgroundColor: COLORS.bg, borderRightWidth: 1, borderRightColor: COLORS.border },
-  rail: { width: scale(72) },
+  rail: { width: scale(48), borderRightWidth: 0 },
   collapsed: { width: scale(70) },
   inner: { flex: 1, paddingVertical: SPACE.md, justifyContent: 'space-between', paddingHorizontal: SPACE.md },
-  railInner: { paddingHorizontal: SPACE.xs, alignItems: 'center' },
+  railInner: { paddingHorizontal: 0, alignItems: 'stretch', paddingVertical: SPACE.md },
   navStack: { flex: 1, gap: SPACE.md },
-  railStack: { gap: SPACE.lg },
+  railStack: { gap: 0 },
   navItem: { minHeight: scale(48), paddingVertical: SPACE.md, paddingHorizontal: SPACE.md, borderRadius: 6, flexDirection: 'row', alignItems: 'center', gap: SPACE.md },
-  railItem: { width: scale(48), height: scale(48), justifyContent: 'center', alignItems: 'center', borderRadius: RADIUS.md },
+  railItem: { width: '100%', height: scale(50), justifyContent: 'center', alignItems: 'center', flexDirection: 'row', borderLeftWidth: 2, borderLeftColor: 'transparent' },
   active: { backgroundColor: COLORS.accentTint },
-  railActive: {},
+  railActive: { borderLeftColor: COLORS.accent },
   label: { fontSize: FONT.sm, fontFamily: FONT_FAMILY.mono, fontWeight: '500' },
   content: { flex: 1, backgroundColor: COLORS.bg },
   status: { gap: SPACE.md, paddingTop: SPACE.lg, paddingBottom: SPACE.md, borderTopWidth: 1, paddingLeft: SPACE.md },
