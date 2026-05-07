@@ -39,6 +39,8 @@ nav:
   - Getting Started:
     - Quick Start: overview/quickstart.md
     - Architecture: overview/architecture.md
+  - Design:
+    - Style Guide: DESIGN_STYLE_GUIDE.md
   - API:
     - Authentication: api/auth.md
   - Operations:
