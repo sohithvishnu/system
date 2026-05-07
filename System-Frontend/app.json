@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "ai-kanban-app",
-    "slug": "ai-kanban-app",
+    "name": "system",
+    "slug": "system",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,7 +14,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.ai-kanban-app"
+      "bundleIdentifier": "com.anonymous.system",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "appleTeamId": "2P75V7VV5U"
     },
     "android": {
       "adaptiveIcon": {
@@ -22,13 +26,20 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.air.system"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "8e867a80-aa52-4d8e-b38d-ed96dfcbeb9b"
+      }
+    }
   }
 }
