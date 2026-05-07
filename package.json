@@ -3,11 +3,15 @@
   "version": "1.0.0",
   "description": "Master boot controller for the ROOT_SYSTEM",
   "scripts": {
-   "boot:mac": "node auto-ip.js && concurrently -c \"green,blue\" -n \"BACKEND,FRONTEND\" \"cd System-Backend && python main.py\" \"cd System-Frontend && npx expo start\"",
-    "boot:win": "node auto-ip.js && concurrently -c \"green,blue\" -n \"BACKEND,FRONTEND\" \"cd System-Backend && venv\\Scripts\\activate && python main.py\" \"cd System-Frontend && npx expo start\"",
-    "boot:simple": "node auto-ip.js && concurrently -c \"green,blue\" -n \"BACKEND,FRONTEND\" \"cd System-Backend && python main.py\" \"cd System-Frontend && npx expo start\""
+    "preboot": "node auto-ip.js",
+    "clean:ports": "npx kill-port 8000 8081 8001 || true",
+    "boot:mac": "npm run clean:ports && npm run preboot && concurrently -c \"green,blue,yellow\" -n \"BACKEND,FRONTEND,DOCS\" \"cd System-Backend && python main.py\" \"cd System-Frontend && npx expo start -c -p 8081\" \"mkdocs serve --dev-addr 0.0.0.0:8001\"",
+    "boot:win": "npm run preboot && concurrently -c \"green,blue,yellow\" -n \"BACKEND,FRONTEND,DOCS\" \"cd System-Backend && venv\\Scripts\\activate && python main.py\" \"cd System-Frontend && npx expo start -c -p 8081\" \"mkdocs serve --dev-addr 0.0.0.0:8001\"",
+    "boot:simple": "npm run preboot && concurrently -c \"green,blue,yellow\" -n \"BACKEND,FRONTEND,DOCS\" \"cd System-Backend && python main.py\" \"cd System-Frontend && npx expo start\" \"mkdocs serve --dev-addr 0.0.0.0:8001\"",
+    "dev": "cd System-Frontend && npx expo start"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "kill-port": "^2.0.1"
   }
 }

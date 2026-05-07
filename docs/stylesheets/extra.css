@@ -1,0 +1,706 @@
+/* ============================================================================
+   ELECTRIC BRUTALIST THEME
+   Comprehensive CSS override for MkDocs Material theme
+   Pure black background, neon green + hot red accents, hard borders
+   ============================================================================ */
+
+:root {
+  /* ========== PRIMARY COLORS ========== */
+  --md-primary-fg-color: #00FF66;
+  --md-primary-fg-color-dark: #00CC55;
+  --md-primary-bg-color: #000000;
+  --md-primary-bg-color--light: #0A0A0A;
+  
+  /* ========== ACCENT COLORS (Red for warnings/errors) ========== */
+  --md-accent-fg-color: #FF2C55;
+  --md-accent-fg-color-transparent: rgba(255, 44, 85, 0.1);
+  
+  /* ========== BACKGROUND & SURFACES ========== */
+  --md-default-bg-color: #000000;
+  --md-default-fg-color: #FFFFFF;
+  --md-code-bg-color: #0A0A0A;
+  --md-code-fg-color: #00FF66;
+  
+  /* ========== SECONDARY TEXT COLORS ========== */
+  --md-typeset-color: #E0E0E0;
+  --md-typeset-a-color: #00FF66;
+  
+  /* ========== BORDERS & SHADOWS ========== */
+  --md-footer-bg-color: #000000;
+  --md-footer-fg-color: #00FF66;
+  --md-footer-bg-color--light: #0A0A0A;
+  
+  /* ========== ADMONITION COLORS ========== */
+  --md-admonition-bg-color: #0A0A0A;
+  
+  /* ========== BUTTON COLORS ========== */
+  --md-button-active-bg-color: #00FF66;
+  --md-button-active-fg-color: #000000;
+  --md-button-font-weight: 900;
+}
+
+/* ============================================================================
+   HTML & BODY BASE STYLES
+   ============================================================================ */
+
+html, body {
+  background-color: #000000 !important;
+  color: #FFFFFF !important;
+}
+
+::selection {
+  background-color: #00FF66 !important;
+  color: #000000 !important;
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: #000000;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #00FF66;
+  border: 2px solid #000000;
+}
+
+/* ============================================================================
+   MAIN CONTAINER & LAYOUT
+   ============================================================================ */
+
+.md-container {
+  background-color: #000000 !important;
+}
+
+.md-main__inner {
+  background-color: #000000 !important;
+}
+
+/* ============================================================================
+   HEADER & NAVIGATION
+   ============================================================================ */
+
+.md-header {
+  background-color: #000000 !important;
+  border-bottom: 2px solid #1a1a1a !important;
+  box-shadow: none !important;
+}
+
+.md-header-nav {
+  background-color: #000000 !important;
+}
+
+.md-header-nav__title {
+  color: #00FF66 !important;
+  font-weight: 900 !important;
+  letter-spacing: 2px !important;
+}
+
+.md-header-nav__button {
+  color: #00FF66 !important;
+}
+
+.md-header-nav__button:hover {
+  color: #FFFFFF !important;
+  background-color: #0A0A0A !important;
+}
+
+/* ============================================================================
+   NAVIGATION TABS & MENU
+   ============================================================================ */
+
+.md-nav {
+  background-color: #000000 !important;
+}
+
+.md-nav__item {
+  border-left: 2px solid #1a1a1a !important;
+}
+
+.md-nav__item--active > .md-nav__link {
+  color: #00FF66 !important;
+  border-left: 2px solid #00FF66 !important;
+  background-color: #0A0A0A !important;
+  font-weight: 900 !important;
+}
+
+.md-nav__link {
+  color: #E0E0E0 !important;
+  padding: 10px 16px !important;
+  border-left: 2px solid transparent !important;
+  transition: all 0.2s ease !important;
+}
+
+.md-nav__link:hover {
+  color: #00FF66 !important;
+  background-color: #0A0A0A !important;
+}
+
+.md-tabs {
+  background-color: #000000 !important;
+  border-bottom: 2px solid #1a1a1a !important;
+}
+
+.md-tabs__link {
+  color: #E0E0E0 !important;
+  border-bottom: 3px solid transparent !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+}
+
+.md-tabs__link:hover {
+  color: #00FF66 !important;
+}
+
+.md-tabs__link--active {
+  color: #00FF66 !important;
+  border-bottom: 3px solid #00FF66 !important;
+  background-color: #0A0A0A !important;
+}
+
+/* ============================================================================
+   CONTENT AREA
+   ============================================================================ */
+
+.md-content {
+  background-color: #000000 !important;
+  color: #E0E0E0 !important;
+}
+
+.md-typeset {
+  color: #E0E0E0 !important;
+}
+
+/* ============================================================================
+   TYPOGRAPHY
+   ============================================================================ */
+
+.md-typeset h1 {
+  color: #00FF66 !important;
+  font-weight: 900 !important;
+  letter-spacing: 1px !important;
+  border-bottom: 2px solid #1a1a1a !important;
+  padding-bottom: 12px !important;
+  margin-bottom: 16px !important;
+}
+
+.md-typeset h2 {
+  color: #00FF66 !important;
+  font-weight: 900 !important;
+  letter-spacing: 1px !important;
+  margin-top: 32px !important;
+  margin-bottom: 12px !important;
+  border-left: 4px solid #00FF66 !important;
+  padding-left: 12px !important;
+}
+
+.md-typeset h3 {
+  color: #00FF66 !important;
+  font-weight: 900 !important;
+  margin-top: 24px !important;
+  margin-bottom: 12px !important;
+}
+
+.md-typeset h4,
+.md-typeset h5,
+.md-typeset h6 {
+  color: #00FF66 !important;
+  font-weight: 700 !important;
+}
+
+/* ============================================================================
+   LINKS & ANCHORS
+   ============================================================================ */
+
+.md-typeset a {
+  color: #00FF66 !important;
+  text-decoration: none !important;
+  border-bottom: 1px solid #00FF66 !important;
+  transition: all 0.2s ease !important;
+}
+
+.md-typeset a:hover {
+  color: #FFFFFF !important;
+  background-color: #0A0A0A !important;
+  border-bottom: 2px solid #FFFFFF !important;
+}
+
+.headerlink {
+  color: #00FF66 !important;
+  margin-left: 8px !important;
+}
+
+/* ============================================================================
+   STANDARD ELEMENTS: LISTS, TABLES, CODE
+   ============================================================================ */
+
+.md-typeset ul {
+  list-style: none !important;
+  padding-left: 0 !important;
+}
+
+.md-typeset ul li {
+  border-left: 2px solid #00FF66 !important;
+  padding-left: 16px !important;
+  margin-bottom: 8px !important;
+}
+
+.md-typeset ol {
+  padding-left: 0 !important;
+}
+
+.md-typeset ol li {
+  border-left: 2px solid #00FF66 !important;
+  padding-left: 16px !important;
+  margin-bottom: 8px !important;
+}
+
+/* INLINE CODE */
+.md-typeset code {
+  background-color: #0A0A0A !important;
+  color: #00FF66 !important;
+  border: 1px solid #1a1a1a !important;
+  padding: 2px 6px !important;
+  font-family: 'DejaVu Sans Mono', monospace !important;
+  font-weight: 600 !important;
+}
+
+/* CODE BLOCKS */
+.md-typeset pre {
+  background-color: #0A0A0A !important;
+  border: 2px solid #1a1a1a !important;
+  border-radius: 0 !important;
+  padding: 16px !important;
+  overflow-x: auto !important;
+  line-height: 1.5 !important;
+}
+
+.md-typeset pre code {
+  background-color: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  color: #00FF66 !important;
+}
+
+pre {
+  background-color: #0A0A0A !important;
+}
+
+/* CODE COPY BUTTON */
+.md-copy {
+  background-color: #0A0A0A !important;
+  border: 1px solid #1a1a1a !important;
+  color: #00FF66 !important;
+}
+
+.md-copy:hover {
+  color: #FFFFFF !important;
+  background-color: #1a1a1a !important;
+  border-color: #00FF66 !important;
+}
+
+/* TABLES */
+.md-typeset table {
+  border: 2px solid #1a1a1a !important;
+}
+
+.md-typeset table thead tr {
+  background-color: #0A0A0A !important;
+  border-bottom: 2px solid #1a1a1a !important;
+}
+
+.md-typeset table thead tr th {
+  color: #00FF66 !important;
+  font-weight: 900 !important;
+  border-right: 2px solid #1a1a1a !important;
+  padding: 12px !important;
+}
+
+.md-typeset table tbody tr {
+  border-bottom: 1px solid #1a1a1a !important;
+}
+
+.md-typeset table tbody tr td {
+  border-right: 1px solid #1a1a1a !important;
+  padding: 12px !important;
+  color: #E0E0E0 !important;
+}
+
+.md-typeset table tbody tr:hover {
+  background-color: #0A0A0A !important;
+}
+
+/* ============================================================================
+   ADMONITIONS (Note, Warning, etc.)
+   ============================================================================ */
+
+.admonition {
+  background-color: #0A0A0A !important;
+  border: 2px solid #1a1a1a !important;
+  border-left: 4px solid #00FF66 !important;
+  padding: 12px !important;
+  margin: 12px 0 !important;
+}
+
+.admonition.note {
+  border-left: 4px solid #00FF66 !important;
+}
+
+.admonition.note > .admonition-title {
+  color: #00FF66 !important;
+  font-weight: 900 !important;
+}
+
+.admonition.warning {
+  border-left: 4px solid #FF2C55 !important;
+}
+
+.admonition.warning > .admonition-title {
+  color: #FF2C55 !important;
+  font-weight: 900 !important;
+}
+
+.admonition.danger {
+  border-left: 4px solid #FF2C55 !important;
+}
+
+.admonition.danger > .admonition-title {
+  color: #FF2C55 !important;
+  font-weight: 900 !important;
+}
+
+.admonition.attention {
+  border-left: 4px solid #FF2C55 !important;
+}
+
+.admonition.attention > .admonition-title {
+  color: #FF2C55 !important;
+  font-weight: 900 !important;
+}
+
+.admonition.success {
+  border-left: 4px solid #00FF66 !important;
+}
+
+.admonition.success > .admonition-title {
+  color: #00FF66 !important;
+  font-weight: 900 !important;
+}
+
+.admonition.info {
+  border-left: 4px solid #00FF66 !important;
+}
+
+.admonition.info > .admonition-title {
+  color: #00FF66 !important;
+  font-weight: 900 !important;
+}
+
+.admonition > .admonition-title {
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+}
+
+.admonition > .admonition-title::before {
+  content: "[ " !important;
+  color: inherit !important;
+}
+
+.admonition > .admonition-title::after {
+  content: " ]" !important;
+  color: inherit !important;
+}
+
+/* ============================================================================
+   BUTTONS & CONTROLS
+   ============================================================================ */
+
+.md-button {
+  background-color: #0A0A0A !important;
+  border: 2px solid #00FF66 !important;
+  color: #00FF66 !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  transition: all 0.2s ease !important;
+  border-radius: 0 !important;
+}
+
+.md-button:hover {
+  background-color: #00FF66 !important;
+  color: #000000 !important;
+  border-color: #00FF66 !important;
+}
+
+.md-button--primary {
+  background-color: #00FF66 !important;
+  border: 2px solid #00FF66 !important;
+  color: #000000 !important;
+}
+
+.md-button--primary:hover {
+  background-color: #00CC55 !important;
+  border-color: #00CC55 !important;
+}
+
+/* ============================================================================
+   SEARCH BOX
+   ============================================================================ */
+
+.md-search {
+  background-color: #000000 !important;
+}
+
+.md-search__input {
+  background-color: #0A0A0A !important;
+  color: #E0E0E0 !important;
+  border: 2px solid #1a1a1a !important;
+  border-radius: 0 !important;
+  padding: 10px 12px !important;
+  font-weight: 600 !important;
+}
+
+.md-search__input:hover {
+  border-color: #00FF66 !important;
+}
+
+.md-search__input:focus {
+  border-color: #00FF66 !important;
+  box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.2) !important;
+}
+
+.md-search__input::placeholder {
+  color: #555 !important;
+}
+
+.md-search__button {
+  color: #00FF66 !important;
+}
+
+.md-search__button:hover {
+  color: #FFFFFF !important;
+  background-color: #0A0A0A !important;
+}
+
+/* SEARCH RESULTS */
+.md-search-result {
+  background-color: #000000 !important;
+  border: 2px solid #1a1a1a !important;
+  border-top: none !important;
+}
+
+.md-search-result__item {
+  border-bottom: 1px solid #1a1a1a !important;
+}
+
+.md-search-result__link {
+  color: #E0E0E0 !important;
+}
+
+.md-search-result__link:hover {
+  background-color: #0A0A0A !important;
+}
+
+.md-search-result__link--active {
+  background-color: #0A0A0A !important;
+}
+
+.md-search-result__article--from-current {
+  color: #00FF66 !important;
+  font-weight: 700 !important;
+}
+
+.md-search-result__teaser {
+  color: #AAAAAA !important;
+}
+
+/* ============================================================================
+   SIDEBAR & TOC
+   ============================================================================ */
+
+.md-sidebar {
+  background-color: #000000 !important;
+}
+
+.md-toc {
+  scrollbar-width: thin;
+  scrollbar-color: #00FF66 #000000;
+}
+
+.md-toc::-webkit-scrollbar {
+  width: 6px;
+}
+
+.md-toc::-webkit-scrollbar-track {
+  background: #000000;
+}
+
+.md-toc::-webkit-scrollbar-thumb {
+  background: #00FF66;
+}
+
+/* ============================================================================
+   FOOTER
+   ============================================================================ */
+
+.md-footer {
+  background-color: #000000 !important;
+  border-top: 2px solid #1a1a1a !important;
+}
+
+.md-footer__inner {
+  padding: 20px !important;
+}
+
+.md-footer__link {
+  color: #00FF66 !important;
+  border: none !important;
+}
+
+.md-footer__link:hover {
+  color: #FFFFFF !important;
+}
+
+/* ============================================================================
+   RESPONSIVE & LAYOUT
+   ============================================================================ */
+
+@media (max-width: 1216px) {
+  .md-sidebar--secondary {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .md-typeset h1 {
+    font-size: 1.5em !important;
+  }
+  
+  .md-typeset h2 {
+    font-size: 1.3em !important;
+  }
+  
+  .md-typeset table {
+    font-size: 0.85em !important;
+  }
+}
+
+/* ============================================================================
+   MERMAID DIAGRAMS
+   ============================================================================ */
+
+.mermaid {
+  background-color: #0A0A0A !important;
+  border: 2px solid #1a1a1a !important;
+  padding: 16px !important;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.mermaid svg {
+  background-color: transparent !important;
+}
+
+/* ============================================================================
+   DARK MODE OVERRIDE (Force dark on all elements)
+   ============================================================================ */
+
+[data-md-color-scheme="dark"] {
+  --md-primary-fg-color: #00FF66 !important;
+  --md-primary-bg-color: #000000 !important;
+  --md-default-bg-color: #000000 !important;
+  --md-default-fg-color: #FFFFFF !important;
+  --md-typeset-color: #E0E0E0 !important;
+  --md-code-bg-color: #0A0A0A !important;
+  --md-code-fg-color: #00FF66 !important;
+}
+
+/* ============================================================================
+   UTILITY CLASSES FOR BRUTALIST STYLE
+   ============================================================================ */
+
+.highlight-box {
+  background-color: #0A0A0A !important;
+  border: 2px solid #00FF66 !important;
+  padding: 16px !important;
+  margin: 16px 0 !important;
+}
+
+.error-box {
+  background-color: #0A0A0A !important;
+  border: 2px solid #FF2C55 !important;
+  padding: 16px !important;
+  margin: 16px 0 !important;
+}
+
+.error-box > strong {
+  color: #FF2C55 !important;
+}
+
+.success-box {
+  background-color: #0A0A0A !important;
+  border: 2px solid #00FF66 !important;
+  padding: 16px !important;
+  margin: 16px 0 !important;
+}
+
+.success-box > strong {
+  color: #00FF66 !important;
+}
+
+/* ============================================================================
+   ADDITIONAL FIXES & CONSISTENCY
+   ============================================================================ */
+
+.md-typeset blockquote {
+  border-left: 4px solid #00FF66 !important;
+  color: #AAAAAA !important;
+  padding-left: 16px !important;
+  margin-left: 0 !important;
+}
+
+.md-typeset hr {
+  border: none !important;
+  border-top: 2px solid #1a1a1a !important;
+  margin: 24px 0 !important;
+}
+
+.md-typeset img {
+  border: 2px solid #1a1a1a !important;
+  max-width: 100% !important;
+}
+
+/* Ensure NO rounded corners anywhere */
+* {
+  border-radius: 0 !important;
+}
+
+/* Explicit hard contrast text shadows for readability */
+.md-typeset strong {
+  font-weight: 900 !important;
+  color: #FFFFFF !important;
+}
+
+.md-typeset em {
+  font-style: italic !important;
+  color: #00FF66 !important;
+}
+
+/* Screen reader workaround */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

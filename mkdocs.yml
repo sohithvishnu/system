@@ -1,0 +1,53 @@
+site_name: "SYSTEM / Brutalist Documentation"
+site_description: "Local-first AI Personal OS — Complete technical reference"
+site_author: "Advanced Intelligence Research"
+site_url: "http://localhost:8001/"
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: green
+      accent: lime
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+extra_css:
+  - stylesheets/extra.css
+
+plugins:
+  - search:
+      lang: en
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - tables
+  - toc
+  - attr_list
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quick Start: overview/quickstart.md
+    - Architecture: overview/architecture.md
+  - Design:
+    - Style Guide: DESIGN_STYLE_GUIDE.md
+  - API:
+    - Authentication: api/auth.md
+  - Operations:
+    - Docker: ops/docker.md
+  - Implementation:
+    - Completion Summary: COMPLETION_SUMMARY.md
+    - Implementation Summary: IMPLEMENTATION_SUMMARY.md
+    - System Complete: SYSTEM_COMPLETE.md
+
+copyright: "© 2026 Advanced Intelligence Research"

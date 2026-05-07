@@ -1,14 +1,16 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert, useWindowDimensions, Platform, RefreshControl, Modal, TextInput, KeyboardAvoidingView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
-import { COLORS, BOLD_STYLES } from '../../constants/theme';
+import { COLORS, BOLD_STYLES, ENTITY_COLORS, FONT, FONT_FAMILY, RADIUS, SPACE } from '../../constants/theme';
 import { BACKEND_URL } from '../../constants/config';
+import { formatDateTime, getDateTimeHint } from '../../utils/dateTimeFormatter';
 
-type Ticket = { id: string; title: string; dueDate: string; priority: string; status: string };
+type Ticket = { id: string; title: string; dueDate: string; priority: string; status: string; entity_type?: string; project_id?: string };
 
 const STATUS_FLOW = ['TODO', 'IN_PROGRESS', 'DONE'];
+const ENTITY_TYPES = ['TO_DO', 'DEADLINE', 'MEETING', 'REST'];
 
 export default function BoardScreen() {
   const { user, logout } = useAuth();
@@ -20,23 +22,20 @@ export default function BoardScreen() {
   const [editTitle, setEditTitle] = useState('');
   const [editPriority, setEditPriority] = useState('');
   const [editDueDate, setEditDueDate] = useState('');
-  
-  // Responsive logic
+  const [editEntityType, setEditEntityType] = useState('TO_DO');
+  const [editProjectId, setEditProjectId] = useState('');
+  const [dateTimeError, setDateTimeError] = useState('');
+
   const isMobile = screenWidth < 768;
   const COLUMN_WIDTH = isMobile ? screenWidth * 0.75 : 340;
-  
-  // AbortController for canceling ticket requests
+
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchTickets = async () => {
-    // Cancel previous request if still pending
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    
-    // Create new abort controller for this request
     abortControllerRef.current = new AbortController();
-    
     setLoading(true);
     try {
       const response = await fetch(`${BACKEND_URL}/api/tickets?user_id=${user?.id}`, {
@@ -68,7 +67,6 @@ export default function BoardScreen() {
     useCallback(() => {
       fetchTickets();
       return () => {
-        // Cancel request when screen loses focus
         if (abortControllerRef.current) {
           abortControllerRef.current.abort();
         }
@@ -79,15 +77,11 @@ export default function BoardScreen() {
   const updateTicketStatus = async (ticketId: string, newStatus: string) => {
     const ticket = tickets.find(t => t.id === ticketId);
     if (!ticket) return;
-
     try {
       const res = await fetch(`${BACKEND_URL}/api/tickets/${ticketId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          status: newStatus,
-          user_id: user?.id 
-        }),
+        body: JSON.stringify({ status: newStatus, user_id: user?.id }),
       });
       const data = await res.json();
       if (data.success) {
@@ -97,38 +91,78 @@ export default function BoardScreen() {
       }
     } catch (e: any) {
       console.error("Failed to update status", e);
-      Alert.alert('Network Error', 'Could not update ticket. Please try again.');
+      Alert.alert('SYSTEM_ERR', 'Backend connection severed. Ticket status update failed.');
     }
   };
 
   const saveEditedTicket = async () => {
     if (!editingTicket) return;
-    
+    const formatted = formatDateTime(editDueDate, true);
+    if (!formatted) {
+      setDateTimeError('Invalid date/time. Use: DD/MM/YYYY HH:MM or DD/MM/YYYY');
+      return;
+    }
     try {
       const res = await fetch(`${BACKEND_URL}/api/tickets/${editingTicket.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: editTitle,
-          priority: editPriority,
-          dueDate: editDueDate,
+          priority: editPriority.toUpperCase(),
+          dueDate: formatted,
+          entity_type: editEntityType,
+          project_id: editProjectId || null,
           user_id: user?.id
         }),
       });
       const data = await res.json();
       if (data.success) {
-        setEditingTicket(null);
-        setEditTitle('');
-        setEditPriority('');
-        setEditDueDate('');
+        closeEditModal();
         fetchTickets();
       } else {
         Alert.alert('Error', data.error || 'Failed to save ticket');
       }
     } catch (e: any) {
       console.error("Failed to save ticket", e);
-      Alert.alert('Network Error', 'Could not save ticket. Please try again.');
+      Alert.alert('SYSTEM_ERR', 'Backend connection severed. Ticket save failed.');
     }
+  };
+
+  const deleteTicket = async () => {
+    if (!editingTicket) return;
+    Alert.alert(
+      'delete ticket',
+      'Remove this ticket permanently?',
+      [
+        { text: 'cancel', onPress: () => {}, style: 'cancel' },
+        {
+          text: 'delete',
+          onPress: async () => {
+            try {
+              const res = await fetch(`${BACKEND_URL}/api/tickets/${editingTicket.id}?user_id=${user?.id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+              });
+              const data = await res.json();
+              if (data.success) {
+                setEditingTicket(null);
+                setEditTitle('');
+                setEditPriority('');
+                setEditDueDate('');
+                fetchTickets();
+                Alert.alert('Success', 'Ticket deleted');
+              } else {
+                Alert.alert('Error', data.error || 'Failed to delete ticket');
+              }
+            } catch (e: any) {
+              console.error("Failed to delete ticket", e);
+              Alert.alert('SYSTEM_ERR', 'Backend connection severed. Ticket deletion failed.');
+            }
+          },
+          style: 'destructive'
+        }
+      ]
+    );
   };
 
   const openEditModal = (ticket: Ticket) => {
@@ -136,6 +170,9 @@ export default function BoardScreen() {
     setEditTitle(ticket.title);
     setEditPriority(ticket.priority);
     setEditDueDate(ticket.dueDate);
+    setEditEntityType(ticket.entity_type || 'TO_DO');
+    setEditProjectId(ticket.project_id || '');
+    setDateTimeError('');
   };
 
   const closeEditModal = () => {
@@ -143,6 +180,9 @@ export default function BoardScreen() {
     setEditTitle('');
     setEditPriority('');
     setEditDueDate('');
+    setEditEntityType('TO_DO');
+    setEditProjectId('');
+    setDateTimeError('');
   };
 
   const getNextStatus = (currentStatus: string) => {
@@ -156,97 +196,89 @@ export default function BoardScreen() {
   const getPriorityColor = (priority: string) => {
     if (priority === 'high') return COLORS.danger;
     if (priority === 'medium') return COLORS.warning;
-    return COLORS.success;
+    return COLORS.accent;
   };
 
   const getPriorityPillStyle = (priority: string) => {
     const isHigh = priority === 'high';
     return {
-      backgroundColor: isHigh ? 'rgba(255, 44, 85, 0.08)' : 'rgba(0, 255, 102, 0.08)',
-      borderColor: isHigh ? '#FF2C55' : '#00FF66',
+      backgroundColor: isHigh ? 'rgba(255, 44, 85, 0.06)' : 'rgba(0, 255, 102, 0.06)',
+      borderColor: isHigh ? COLORS.danger : COLORS.accent,
     };
   };
 
   const renderColumn = (title: string, filterStatus: string) => {
     const columnTickets = tickets.filter(t => (t.status || 'TODO').toUpperCase() === filterStatus);
-    
+    const isDone = filterStatus === 'DONE';
+
     return (
       <View style={[styles.column, { width: COLUMN_WIDTH }]}>
-        {/* Column Header */}
         <View style={styles.columnHeaderContainer}>
-          <Text style={styles.columnHeaderText}>{filterStatus}</Text>
+          <Text style={styles.columnHeaderText}>{filterStatus.toLowerCase().replace('_', ' ')}</Text>
           <View style={styles.countBadge}>
             <Text style={styles.countBadgeText}>{columnTickets.length}</Text>
           </View>
         </View>
-        
-        {/* Scrollable Cards */}
+
         <ScrollView style={styles.cardList} showsVerticalScrollIndicator={false}>
           {columnTickets.map((ticket) => (
-            <TouchableOpacity 
-              key={ticket.id} 
-              style={styles.brutalistCard}
+            <TouchableOpacity
+              key={ticket.id}
+              style={[styles.brutalistCard, isDone && styles.brutalistCardDone]}
               onPress={() => openEditModal(ticket)}
               activeOpacity={0.7}
             >
-              {/* Title */}
-              <Text style={styles.cardTitle}>{ticket.title.toUpperCase()}</Text>
-              
-              {/* Footer: Priority Pill + Due Date */}
+              <Text style={[styles.cardTitle, isDone && styles.cardTitleDone]}>{ticket.title}</Text>
               <View style={styles.cardFooter}>
                 <View style={[styles.priorityPill, getPriorityPillStyle(ticket.priority)]}>
+                  <View style={[styles.priorityDot, { backgroundColor: getPriorityColor(ticket.priority) }]} />
                   <Text style={[styles.priorityText, { color: getPriorityColor(ticket.priority) }]}>
-                    {ticket.priority.toUpperCase()}
+                    {ticket.priority.toLowerCase()}
                   </Text>
                 </View>
-                <Text style={styles.dueDateText}>{ticket.dueDate ? `[ ${ticket.dueDate} ]` : '[ NO DATE ]'}</Text>
+                <Text style={styles.dueDateText}>{ticket.dueDate || '—'}</Text>
               </View>
 
-              {/* Movement Actions */}
               <View style={styles.actionRow}>
                 {ticket.status === 'TODO' && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.moveBtn, { marginLeft: 'auto' }]}
                     onPress={() => updateTicketStatus(ticket.id, 'IN_PROGRESS')}
                   >
-                    <Text style={styles.moveBtnText}>{`[ → START ]`}</Text>
+                    <Feather name="arrow-right" size={FONT.xs} color={COLORS.accent} />
+                    <Text style={styles.moveBtnText}>start</Text>
                   </TouchableOpacity>
                 )}
-                
                 {ticket.status === 'IN_PROGRESS' && (
-                  <View style={{ flexDirection: 'row', gap: 8, width: '100%' }}>
-                    <TouchableOpacity 
+                  <View style={{ flexDirection: 'row', gap: SPACE.sm, width: '100%' }}>
+                    <TouchableOpacity
                       style={[styles.moveBtn, { flex: 1 }]}
                       onPress={() => updateTicketStatus(ticket.id, 'TODO')}
                     >
-                      <Text style={styles.moveBtnText}>{`[ ← BACK ]`}</Text>
+                      <Feather name="arrow-left" size={FONT.xs} color={COLORS.textMuted} />
+                      <Text style={styles.moveBtnText}>back</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={[styles.moveBtn, { flex: 1 }]}
                       onPress={() => updateTicketStatus(ticket.id, 'DONE')}
                     >
-                      <Text style={styles.moveBtnText}>{`[ → DONE ]`}</Text>
+                      <Feather name="check" size={FONT.xs} color={COLORS.accent} />
+                      <Text style={styles.moveBtnText}>done</Text>
                     </TouchableOpacity>
                   </View>
                 )}
-                
                 {ticket.status === 'DONE' && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.moveBtn}
                     onPress={() => updateTicketStatus(ticket.id, 'IN_PROGRESS')}
                   >
-                    <Text style={styles.moveBtnText}>{`[ ← REOPEN ]`}</Text>
+                    <Feather name="rotate-ccw" size={FONT.xs} color={COLORS.textMuted} />
+                    <Text style={styles.moveBtnText}>reopen</Text>
                   </TouchableOpacity>
                 )}
               </View>
             </TouchableOpacity>
           ))}
-          
-          {/* Add Ticket Button */}
-          <TouchableOpacity style={styles.addTicketBtn}>
-            <Ionicons name="add" size={18} color="#00FF66" />
-            <Text style={styles.addTicketText}>ADD TICKET</Text>
-          </TouchableOpacity>
         </ScrollView>
       </View>
     );
@@ -256,35 +288,42 @@ export default function BoardScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>PROJECT /</Text>
-          <Text style={styles.headerHighlight}>BOARD</Text>
+          <Text style={styles.headerTitle}>board</Text>
+          <Text style={styles.headerSubtitle}>~/kanban</Text>
         </View>
-        <TouchableOpacity onPress={handleRefresh} style={styles.refreshBtn}>
-          <Ionicons name="scan" size={20} color={COLORS.primary} />
+        <TouchableOpacity
+          onPress={handleRefresh}
+          style={styles.refreshBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Feather name="refresh-cw" size={FONT.md} color={COLORS.textMuted} />
         </TouchableOpacity>
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Text style={{ color: '#00FF66', fontWeight: '900', letterSpacing: 2, fontSize: 14 }}>[ SYSTEM_LOADING... ]</Text>
+        <View style={styles.centered}>
+          <Text style={styles.loadingText}>loading...</Text>
         </View>
       ) : tickets.length === 0 ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 }}>
-          <Text style={{ color: '#FFFFFF', fontWeight: '900', letterSpacing: 1, fontSize: 20, marginBottom: 16 }}>[ NO_TASKS_FOUND ]</Text>
-          <Text style={{ color: '#666666', fontWeight: '900', letterSpacing: 1, fontSize: 12, textAlign: 'center' }}>BOARD EMPTY. CREATE NEW TASKS TO BEGIN.</Text>
+        <View style={styles.centered}>
+          <Text style={styles.emptyTitle}>$ no tasks found</Text>
+          <Text style={styles.emptySubtext}>create tasks in chat to begin.</Text>
         </View>
       ) : (
         <ScrollView
           horizontal
           scrollEnabled={isMobile}
-          snapToInterval={isMobile ? COLUMN_WIDTH + 16 : undefined}
+          snapToInterval={isMobile ? COLUMN_WIDTH + SPACE.md : undefined}
           snapToAlignment={isMobile ? 'start' : undefined}
           decelerationRate={isMobile ? 'fast' : 'normal'}
           showsHorizontalScrollIndicator={false}
           scrollEventThrottle={16}
           style={styles.boardScroll}
-          contentContainerStyle={isMobile ? { paddingHorizontal: 16, gap: 16, paddingVertical: 16 } : { paddingHorizontal: 20, paddingVertical: 16, gap: 16, flexDirection: 'row' }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#00FF66" />}
+          contentContainerStyle={isMobile
+            ? { paddingHorizontal: SPACE.lg, gap: SPACE.md, paddingVertical: SPACE.lg }
+            : { paddingHorizontal: SPACE.xl, paddingVertical: SPACE.lg, gap: SPACE.md, flexDirection: 'row' }
+          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.accent} />}
         >
           {renderColumn('TODO', 'TODO')}
           {renderColumn('IN PROGRESS', 'IN_PROGRESS')}
@@ -292,63 +331,103 @@ export default function BoardScreen() {
         </ScrollView>
       )}
 
-      {/* EDIT TICKET MODAL */}
       <Modal visible={editingTicket !== null} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={100} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>[ EDIT_SYSTEM_TASK ]</Text>
-              
-              {/* Title Input */}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+            style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+          >
+            <ScrollView
+              style={styles.modalContent}
+              contentContainerStyle={{ paddingVertical: SPACE.lg, paddingHorizontal: SPACE.lg, paddingBottom: SPACE.xxl }}
+              scrollEnabled
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.modalTitle}>edit task</Text>
+
               <TextInput
                 style={styles.modalInput}
-                placeholder="TASK_TITLE"
-                placeholderTextColor="#555"
+                placeholder="task title"
+                placeholderTextColor={COLORS.textMuted}
                 value={editTitle}
                 onChangeText={setEditTitle}
+                selectionColor={COLORS.accent}
               />
-              
-              {/* Priority Selector */}
-              <Text style={styles.inputLabel}>PRIORITY</Text>
+
+              <Text style={styles.inputLabel}>priority</Text>
               <View style={styles.prioritySelector}>
                 {['low', 'medium', 'high'].map((p) => (
                   <TouchableOpacity
                     key={p}
-                    style={[
-                      styles.prioritySelectBtn,
-                      editPriority === p && styles.prioritySelectBtnActive
-                    ]}
+                    style={[styles.prioritySelectBtn, editPriority === p && { backgroundColor: getPriorityColor(p), borderColor: getPriorityColor(p) }]}
                     onPress={() => setEditPriority(p)}
                   >
-                    <Text style={[
-                      styles.prioritySelectText,
-                      editPriority === p && styles.prioritySelectTextActive
-                    ]}>
-                      {p.toUpperCase()}
+                    <Text style={[styles.prioritySelectText, editPriority === p && { color: COLORS.bg, fontWeight: '700' }]}>
+                      {p}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
-              
-              {/* Due Date Input */}
+
+              <Text style={styles.inputLabel}>entity type</Text>
+              <View style={styles.entityTypeSelector}>
+                {ENTITY_TYPES.map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.entityTypeBtn,
+                      editEntityType === type && {
+                        borderColor: ENTITY_COLORS[type],
+                        backgroundColor: ENTITY_COLORS[type] + '15'
+                      }
+                    ]}
+                    onPress={() => setEditEntityType(type)}
+                  >
+                    <Text style={[styles.entityTypeText, editEntityType === type && { color: ENTITY_COLORS[type] }]}>
+                      {type.toLowerCase().replace('_', ' ')}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.inputLabel}>project id (optional)</Text>
               <TextInput
                 style={styles.modalInput}
-                placeholder="DUE_DATE (YYYY-MM-DD)"
-                placeholderTextColor="#555"
-                value={editDueDate}
-                onChangeText={setEditDueDate}
+                placeholder="project id"
+                placeholderTextColor={COLORS.textMuted}
+                value={editProjectId}
+                onChangeText={setEditProjectId}
+                selectionColor={COLORS.accent}
               />
-              
-              {/* Modal Actions */}
+
+              <Text style={styles.inputLabel}>due date</Text>
+              <TextInput
+                style={[styles.modalInput, dateTimeError ? styles.errorInput : undefined]}
+                placeholder="DD/MM/YYYY HH:MM or DD/MM/YYYY"
+                placeholderTextColor={COLORS.textMuted}
+                value={editDueDate}
+                onChangeText={(text) => { setEditDueDate(text); setDateTimeError(''); }}
+                selectionColor={COLORS.accent}
+              />
+              {dateTimeError ? (
+                <Text style={styles.errorText}>{dateTimeError}</Text>
+              ) : (
+                <Text style={styles.hintText}>formats: DD/MM/YYYY HH:MM, 09/04/2026 14:30</Text>
+              )}
+
               <View style={styles.modalActions}>
-                <TouchableOpacity onPress={closeEditModal}>
-                  <Text style={styles.cancelText}>[ CANCEL ]</Text>
+                <TouchableOpacity style={styles.cancelBtn} onPress={closeEditModal}>
+                  <Text style={styles.cancelText}>cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.deleteBtn} onPress={deleteTicket}>
+                  <Text style={styles.deleteBtnText}>delete</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.saveBtn} onPress={saveEditedTicket}>
-                  <Text style={styles.saveBtnText}>[ SAVE_MUTATION ]</Text>
+                  <Text style={styles.saveBtnText}>save</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </ScrollView>
           </KeyboardAvoidingView>
         </View>
       </Modal>
@@ -357,239 +436,175 @@ export default function BoardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
-  header: { 
-    paddingVertical: 16, 
-    paddingHorizontal: 20,
-    borderBottomWidth: 2, 
-    borderColor: '#1a1a1a', 
-    flexDirection: 'row', 
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  header: {
+    paddingVertical: SPACE.md,
+    paddingHorizontal: SPACE.lg,
+    borderBottomWidth: 1,
+    borderColor: COLORS.border,
+    flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    backgroundColor: '#000000',
+    alignItems: 'center',
+    backgroundColor: COLORS.bg,
   },
-  headerTitle: { fontSize: 12, fontWeight: '900', color: '#FFFFFF', letterSpacing: 2 },
-  headerHighlight: { fontSize: 28, fontWeight: '900', color: '#00FF66', letterSpacing: -1, marginTop: 4 },
-  refreshBtn: { padding: 8, borderWidth: 2, borderColor: '#1a1a1a', borderRadius: 8 },
-  
+  headerTitle: { fontSize: FONT.xxl, fontWeight: '500', color: COLORS.textPrimary, fontFamily: FONT_FAMILY.sans },
+  headerSubtitle: { fontSize: FONT.md, color: COLORS.textMuted, fontFamily: FONT_FAMILY.mono, marginTop: 2 },
+  refreshBtn: {
+    width: 26, height: 26, justifyContent: 'center', alignItems: 'center',
+    borderRadius: RADIUS.sm, backgroundColor: 'transparent',
+  },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: SPACE.xl },
+  loadingText: { color: COLORS.textMuted, fontSize: FONT.sm, fontFamily: FONT_FAMILY.mono },
+  emptyTitle: { color: COLORS.textMuted, fontSize: FONT.base, fontFamily: FONT_FAMILY.mono, marginBottom: SPACE.sm },
+  emptySubtext: { color: COLORS.textGhost, fontSize: FONT.sm, fontFamily: FONT_FAMILY.mono, textAlign: 'center' },
   boardScroll: { flex: 1 },
-  
-  /* Column Styles */
-  column: { minHeight: '100%' },
-  columnHeaderContainer: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: '#1a1a1a',
-  },
-  columnHeaderText: { 
-    fontSize: 14, 
-    fontWeight: '900', 
-    color: '#FFFFFF', 
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  countBadge: { 
-    backgroundColor: '#1a1a1a', 
+
+  column: {
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: '#00FF66',
-    paddingHorizontal: 8, 
-    paddingVertical: 4,
-    borderRadius: 4,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.lg,
+    padding: SPACE.md,
+    minHeight: '100%',
   },
-  countBadgeText: { 
-    color: '#00FF66', 
-    fontWeight: '900', 
-    fontSize: 12,
-    letterSpacing: 1,
+  columnHeaderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACE.md,
+    paddingBottom: SPACE.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
-  
-  /* Card List */
+  columnHeaderText: {
+    fontSize: FONT.sm,
+    fontWeight: '500',
+    color: COLORS.textMuted,
+    letterSpacing: 0.04 * FONT.sm,
+    fontFamily: FONT_FAMILY.mono,
+  },
+  countBadge: {
+    backgroundColor: COLORS.surfaceAlt,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: SPACE.xs,
+    paddingVertical: 1,
+    borderRadius: 10,
+  },
+  countBadgeText: { color: COLORS.textGhost, fontSize: FONT.xs, fontFamily: FONT_FAMILY.mono },
   cardList: { flex: 1 },
-  
-  /* Brutalist Ticket Card */
+
   brutalistCard: {
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    backgroundColor: COLORS.bg,
+    borderWidth: 1,
+    borderColor: COLORS.borderMid,
+    borderRadius: RADIUS.md,
+    padding: SPACE.md,
+    marginBottom: SPACE.sm,
   },
+  brutalistCardDone: { opacity: 0.4 },
   cardTitle: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-    fontSize: 16,
-    marginBottom: 12,
-    letterSpacing: -0.5,
+    color: COLORS.textPrimary,
+    fontWeight: '500',
+    fontSize: FONT.md,
+    marginBottom: SPACE.sm,
+    lineHeight: FONT.md * 1.4,
+    fontFamily: FONT_FAMILY.sans,
   },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
+  cardTitleDone: { color: COLORS.textMuted },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   priorityPill: {
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  priorityText: {
-    fontWeight: '900',
-    fontSize: 10,
-    letterSpacing: 1,
-  },
-  dueDateText: {
-    color: '#666666',
-    fontWeight: '900',
-    fontSize: 11,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    letterSpacing: 0.5,
-  },
-  
-  /* Add Ticket Button */
-  addTicketBtn: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 16,
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
+    gap: SPACE.xs,
+    borderWidth: 1,
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: SPACE.sm,
+    paddingVertical: 2,
   },
-  addTicketText: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 12,
-    letterSpacing: 1,
-  },
-
-  /* Movement Actions */
-  actionRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
-    width: '100%',
-  },
+  priorityDot: { width: 5, height: 5, borderRadius: 3 },
+  priorityText: { fontSize: FONT.xs, fontFamily: FONT_FAMILY.mono },
+  dueDateText: { color: COLORS.textGhost, fontSize: FONT.xs, fontFamily: FONT_FAMILY.mono },
+  actionRow: { flexDirection: 'row', gap: SPACE.sm, marginTop: SPACE.sm, width: '100%' },
   moveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xs,
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#1a1a1a',
-    borderRadius: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    borderColor: COLORS.borderMid,
+    borderRadius: RADIUS.sm,
+    paddingVertical: SPACE.xs,
+    paddingHorizontal: SPACE.sm,
     justifyContent: 'center',
-    alignItems: 'center',
   },
-  moveBtnText: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 10,
-    letterSpacing: 1,
-  },
+  moveBtnText: { color: COLORS.textMuted, fontSize: FONT.xs, fontFamily: FONT_FAMILY.mono },
 
-  /* Modal Styles */
   modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.95)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center', alignItems: 'center', paddingHorizontal: SPACE.lg,
   },
   modalContent: {
-    width: '100%',
-    maxWidth: 380,
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    borderRadius: 8,
-    padding: 24,
+    width: '100%', maxWidth: 460,
+    backgroundColor: COLORS.bg,
+    borderWidth: 1, borderColor: COLORS.borderMid,
+    borderRadius: RADIUS.lg,
+    maxHeight: '85%',
   },
   modalTitle: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 18,
-    letterSpacing: 2,
-    marginBottom: 20,
+    color: COLORS.textSecondary, fontSize: FONT.md, fontFamily: FONT_FAMILY.mono,
+    fontWeight: '500', marginBottom: SPACE.md,
   },
   modalInput: {
-    backgroundColor: '#000',
-    color: '#FFF',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#1a1a1a',
-    padding: 12,
-    marginBottom: 16,
-    fontWeight: '700',
-    fontSize: 14,
+    backgroundColor: COLORS.surface, color: COLORS.textPrimary,
+    borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.borderMid,
+    paddingHorizontal: SPACE.md, paddingVertical: SPACE.sm,
+    marginBottom: SPACE.md, fontSize: FONT.md, fontFamily: FONT_FAMILY.mono,
   },
   inputLabel: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 11,
-    letterSpacing: 1,
-    marginBottom: 8,
+    color: COLORS.textMuted, fontSize: FONT.sm, fontFamily: FONT_FAMILY.mono,
+    marginBottom: SPACE.xs, fontWeight: '500',
   },
-  prioritySelector: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
+  datePickerBtn: {
+    backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.borderMid,
+    borderRadius: RADIUS.md, paddingHorizontal: SPACE.md, paddingVertical: SPACE.sm,
+    marginBottom: SPACE.md, flexDirection: 'row', alignItems: 'center',
   },
+  datePickerText: { color: COLORS.textPrimary, fontFamily: FONT_FAMILY.mono, fontSize: FONT.md, flex: 1 },
+  prioritySelector: { flexDirection: 'row', gap: SPACE.sm, marginBottom: SPACE.md },
   prioritySelectBtn: {
-    flex: 1,
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#1a1a1a',
-    borderRadius: 6,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    flex: 1, backgroundColor: COLORS.surface,
+    borderWidth: 1, borderColor: COLORS.borderMid, borderRadius: RADIUS.md,
+    paddingVertical: SPACE.sm, alignItems: 'center', justifyContent: 'center',
   },
-  prioritySelectBtnActive: {
-    backgroundColor: '#00FF66',
-    borderColor: '#00FF66',
+  prioritySelectText: { color: COLORS.textMuted, fontSize: FONT.sm, fontFamily: FONT_FAMILY.mono },
+  entityTypeSelector: { flexDirection: 'row', gap: SPACE.sm, marginBottom: SPACE.md, flexWrap: 'wrap' },
+  entityTypeBtn: {
+    flex: 1, minWidth: '22%',
+    backgroundColor: 'transparent', borderWidth: 1, borderColor: COLORS.borderMid,
+    borderRadius: RADIUS.md, paddingVertical: SPACE.sm, alignItems: 'center', justifyContent: 'center',
   },
-  prioritySelectText: {
-    color: '#FFF',
-    fontWeight: '900',
-    fontSize: 11,
-    letterSpacing: 1,
-  },
-  prioritySelectTextActive: {
-    color: '#000',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginTop: 20,
-  },
-  cancelText: {
-    color: '#666',
-    fontWeight: '900',
-    fontSize: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    letterSpacing: 1,
+  entityTypeText: { color: COLORS.textMuted, fontSize: FONT.xs, fontFamily: FONT_FAMILY.mono },
+  cancelText: { color: COLORS.textMuted, fontSize: FONT.sm, fontFamily: FONT_FAMILY.mono },
+  modalActions: { flexDirection: 'column', width: '100%', gap: SPACE.sm, marginTop: SPACE.lg },
+  cancelBtn: {
+    width: '100%', backgroundColor: 'transparent',
+    borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.borderMid,
+    paddingVertical: SPACE.sm, alignItems: 'center', justifyContent: 'center',
   },
   saveBtn: {
-    flex: 1,
-    backgroundColor: '#00FF66',
-    borderRadius: 6,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: '100%', backgroundColor: COLORS.accent,
+    borderRadius: RADIUS.md, paddingVertical: SPACE.sm,
+    alignItems: 'center', justifyContent: 'center',
   },
-  saveBtnText: {
-    color: '#000',
-    fontWeight: '900',
-    fontSize: 12,
-    letterSpacing: 1,
+  saveBtnText: { color: COLORS.bg, fontWeight: '500', fontSize: FONT.md, fontFamily: FONT_FAMILY.mono },
+  deleteBtn: {
+    width: '100%', backgroundColor: 'transparent',
+    borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.danger,
+    paddingVertical: SPACE.sm, alignItems: 'center', justifyContent: 'center',
   },
+  deleteBtnText: { color: COLORS.danger, fontSize: FONT.md, fontFamily: FONT_FAMILY.mono },
+  errorInput: { borderColor: COLORS.danger },
+  errorText: { color: COLORS.danger, fontSize: FONT.xs, fontFamily: FONT_FAMILY.mono, marginTop: SPACE.xs, marginBottom: SPACE.sm },
+  hintText: { color: COLORS.textGhost, fontSize: FONT.xs, fontFamily: FONT_FAMILY.mono, marginTop: SPACE.xs, marginBottom: SPACE.sm },
 });

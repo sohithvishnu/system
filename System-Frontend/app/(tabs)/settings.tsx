@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, useWindowDimensions, TextInput, Platform, Modal, Linking } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
-import { COLORS, BOLD_STYLES } from '../../constants/theme';
+import { COLORS, FONT, FONT_FAMILY, SPACE, RADIUS } from '../../constants/theme';
 import { BACKEND_URL } from '../../constants/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Screen, PageHeader, Section, Card, GhostButton, BlinkingCursor } from '../../components/ui';
+import { scale } from '../../utils/responsive';
 
 export default function SettingsScreen() {
   const { user } = useAuth();
@@ -13,6 +16,15 @@ export default function SettingsScreen() {
   const [activeModel, setActiveModel] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Prompt management state
+  const [prompts, setPrompts] = useState<any[]>([]);
+  const [activePromptId, setActivePromptId] = useState<string | null>(null);
+  const [newPromptName, setNewPromptName] = useState('');
+  const [newPromptContent, setNewPromptContent] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
+  const [promptsLoading, setPromptsLoading] = useState(false);
 
   const isMobile = screenWidth < 768;
 
@@ -31,7 +43,8 @@ export default function SettingsScreen() {
       }
     } catch (e: any) {
       console.error("Failed to fetch models", e);
-      setError('Connection error. Check your backend.');
+      setError('SYSTEM_ERR: Backend connection severed.');
+      Alert.alert('SYSTEM_ERR', 'Could not fetch available AI models.');
     } finally {
       setLoading(false);
     }
@@ -49,12 +62,102 @@ export default function SettingsScreen() {
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchModels();
-      loadActiveModel();
-    }, [fetchModels, loadActiveModel])
-  );
+  // Load custom prompts from backend
+  const loadPrompts = useCallback(async () => {
+    if (!user?.id) return;
+    setPromptsLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/prompts?user_id=${user.id}`);
+      const data = await res.json();
+      if (data.success) {
+        setPrompts(data.prompts);
+        const active = data.prompts.find((p: any) => p.is_active);
+        if (active) {
+          setActivePromptId(active.id);
+        }
+      }
+    } catch (e: any) {
+      console.error("Failed to load prompts", e);
+      Alert.alert('SYSTEM_ERR', 'Backend connection severed. Could not load custom prompts.');
+    } finally {
+      setPromptsLoading(false);
+    }
+  }, [user?.id]);
+
+  const createNewPrompt = useCallback(async () => {
+    if (!newPromptName.trim() || !newPromptContent.trim() || !user?.id) {
+      Alert.alert('ERROR', 'Name and content required');
+      return;
+    }
+    
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/prompts?user_id=${user.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newPromptName.trim(), content: newPromptContent.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        Alert.alert('SUCCESS', 'Prompt created');
+        setNewPromptName('');
+        setNewPromptContent('');
+        setShowCreateModal(false);
+        await loadPrompts();
+      } else {
+        Alert.alert('ERROR', data.error || 'Failed to create prompt');
+      }
+    } catch (e: any) {
+      console.error("Failed to create prompt", e);
+      Alert.alert('SYSTEM_ERR', 'Backend connection severed. Could not create prompt.');
+    }
+  }, [newPromptName, newPromptContent, user?.id, loadPrompts]);
+
+  const deletePrompt = useCallback(async (promptId: string) => {
+    if (!user?.id) return;
+    
+    Alert.alert('DELETE PROMPT', 'Are you sure?', [
+      { text: 'Cancel', onPress: () => {} },
+      {
+        text: 'Delete',
+        onPress: async () => {
+          try {
+            const res = await fetch(`${BACKEND_URL}/api/prompts/${promptId}?user_id=${user.id}`, {
+              method: 'DELETE',
+            });
+            const data = await res.json();
+            if (data.success) {
+              await loadPrompts();
+            }
+          } catch (e: any) {
+            console.error("Failed to delete prompt", e);
+            Alert.alert('SYSTEM_ERR', 'Backend connection severed. Could not delete prompt.');
+          }
+        },
+      },
+    ]);
+  }, [user?.id, loadPrompts]);
+
+  const activatePrompt = useCallback(async (promptId: string) => {
+    if (!user?.id) return;
+    
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/prompts/${promptId}/activate?user_id=${user.id}`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActivePromptId(promptId);
+        // Save to AsyncStorage for quick access in chat
+        const prompt = prompts.find(p => p.id === promptId);
+        if (prompt) {
+          await AsyncStorage.setItem('@system_custom_prompt', prompt.content);
+        }
+        await loadPrompts();
+      }
+    } catch (e: any) {
+      Alert.alert('ERROR', 'Failed to activate prompt');
+    }
+  }, [user?.id, prompts, loadPrompts]);
 
   const selectModel = async (modelName: string) => {
     try {
@@ -66,36 +169,91 @@ export default function SettingsScreen() {
     }
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>SYSTEM /</Text>
-        <Text style={styles.headerHighlight}>CONFIG</Text>
-      </View>
+  // Open documentation in browser
+  const openDocumentation = async () => {
+    try {
+      const docsUrl = 'http://localhost:8001';
+      const canOpen = await Linking.canOpenURL(docsUrl);
+      if (canOpen) {
+        await Linking.openURL(docsUrl);
+      } else {
+        Alert.alert('ERROR', 'Cannot open documentation URL');
+      }
+    } catch (e: any) {
+      console.error("Failed to open documentation", e);
+      Alert.alert('ERROR', 'Failed to open documentation');
+    }
+  };
 
-      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* AI CORE SELECTION */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>AI_CORE_SELECTION</Text>
+
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchModels();
+      loadActiveModel();
+      loadPrompts();
+    }, [fetchModels, loadActiveModel, loadPrompts])
+  );
+
+  return (
+    <Screen>
+      <PageHeader title="settings" subtitle="~/config" />
+
+      <ScrollView contentContainerStyle={{ paddingBottom: SPACE.lg }}>
+        {/* CONNECTION SECTION */}
+        <Section label="connection">
+          <Card style={styles.urlInputContainer}>
+            <TextInput
+              style={styles.urlInput}
+              value={BACKEND_URL}
+              editable={false}
+              placeholderTextColor={COLORS.textMuted}
+            />
+          </Card>
+          
+          <GhostButton 
+            label="test connection" 
+            onPress={() => {
+              Alert.alert('Connection Test', `Backend: ${BACKEND_URL}`);
+            }}
+            style={{ marginBottom: SPACE.md }}
+          />
+          
+          <View style={styles.statusIndicator}>
+            <View style={[styles.statusDot, { backgroundColor: COLORS.accent }]} />
+            <Text style={styles.statusText}>connected</Text>
+          </View>
+        </Section>
+
+        {/* MODEL SECTION */}
+        <Section label="model">
+          {activeModel && (
+            <Card style={styles.currentModelPill}>
+              <View style={styles.modelPillContent}>
+                <View style={styles.modelDot} />
+                <Text style={styles.modelPillText}>{activeModel}</Text>
+              </View>
+            </Card>
+          )}
 
           {loading ? (
             <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>[ FETCHING_NEURAL_CORES... ]</Text>
+              <BlinkingCursor />
+              <Text style={styles.loadingText}>fetching models...</Text>
             </View>
           ) : error ? (
-            <View style={styles.errorBlock}>
-              <Text style={styles.errorTitle}>[ OLLAMA_OFFLINE ]</Text>
-              <Text style={styles.errorMessage}>Please run 'ollama serve' on the host machine.</Text>
-              <Text style={styles.errorDetail}>{error}</Text>
-            </View>
+            <Card style={styles.errorBlock}>
+              <Text style={styles.errorTitle}>connection failed</Text>
+              <Text style={styles.errorMessage}>{error}</Text>
+            </Card>
           ) : models.length === 0 ? (
-            <View style={styles.emptyBlock}>
-              <Text style={styles.emptyText}>NO MODELS AVAILABLE</Text>
-            </View>
+            <Card style={styles.emptyBlock}>
+              <Text style={styles.emptyText}>no models available</Text>
+            </Card>
           ) : (
             <View style={styles.modelsGrid}>
               {models.map((model) => (
-                <TouchableOpacity
+                <Card
                   key={model}
                   style={[
                     styles.modelCard,
@@ -103,193 +261,184 @@ export default function SettingsScreen() {
                   ]}
                   onPress={() => selectModel(model)}
                 >
-                  <Text style={[
-                    styles.modelName,
-                    activeModel === model && styles.modelNameActive
-                  ]}>
-                    {model}
-                  </Text>
-                  {activeModel === model && (
-                    <Text style={styles.activeIndicator}>[ ACTIVE ]</Text>
-                  )}
-                </TouchableOpacity>
+                  <View style={styles.modelCardContent}>
+                    <Text style={[
+                      styles.modelName,
+                      activeModel === model && styles.modelNameActive
+                    ]}>
+                      {model}
+                    </Text>
+                    {activeModel === model && (
+                      <Feather name="check" size={FONT.md} color={COLORS.accent} />
+                    )}
+                  </View>
+                </Card>
               ))}
             </View>
           )}
-        </View>
+        </Section>
 
-        {/* SYSTEM STATUS */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>SYSTEM_STATUS</Text>
-          <View style={styles.statusCard}>
-            <View style={styles.statusRow}>
-              <Text style={styles.statusLabel}>BACKEND_URL</Text>
-              <Text style={styles.statusValue}>{BACKEND_URL}</Text>
-            </View>
-            <View style={[styles.statusRow, { borderTopWidth: 1, borderTopColor: '#1a1a1a', marginTop: 12, paddingTop: 12 }]}>
-              <Text style={styles.statusLabel}>ACTIVE_MODEL</Text>
-              <Text style={styles.statusValue}>{activeModel || 'NOT_SELECTED'}</Text>
-            </View>
-          </View>
-        </View>
+        {/* APPEARANCE SECTION */}
+        <Section label="appearance">
+          <Card style={styles.promptContainer}>
+            <TextInput
+              style={styles.promptTextarea}
+              placeholder="custom ai directives (monospace, optional)"
+              placeholderTextColor={COLORS.textMuted}
+              multiline
+              textAlignVertical="top"
+              numberOfLines={4}
+            />
+          </Card>
+        </Section>
+
+        {/* DATA SECTION */}
+        <Section label="data">
+          <GhostButton 
+            label="clear cache" 
+            onPress={() => Alert.alert('Clear Cache', 'Cache cleared')}
+            style={{ marginBottom: SPACE.xxl }}
+          />
+          <GhostButton 
+            label="clear history" 
+            onPress={() => Alert.alert('Clear History', 'History cleared')}
+            danger
+          />
+        </Section>
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
-  header: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 2,
-    borderColor: '#1a1a1a',
-    backgroundColor: '#000000',
+  // CONNECTION SECTION
+  urlInputContainer: {
+    marginBottom: SPACE.xxl,
   },
-  headerTitle: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 2,
-  },
-  headerHighlight: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#00FF66',
-    letterSpacing: -1,
-    marginTop: 4,
-  },
-  content: { flex: 1 },
-
-  /* Sections */
-  section: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderColor: '#1a1a1a',
-  },
-  sectionTitle: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 13,
-    letterSpacing: 2,
-    marginBottom: 16,
-    textTransform: 'uppercase',
+  urlInput: {
+    fontSize: FONT.md,
+    fontFamily: FONT_FAMILY.mono,
+    color: COLORS.textPrimary,
   },
 
-  /* Loading State */
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+    marginBottom: SPACE.xxl,
+  },
+  statusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  statusText: {
+    fontSize: FONT.sm,
+    fontFamily: FONT_FAMILY.mono,
+    color: COLORS.textSecondary,
+  },
+
+  // MODEL SECTION
+  currentModelPill: {
+    marginBottom: SPACE.lg,
+    backgroundColor: COLORS.surface,
+  },
+  modelPillContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+  },
+  modelDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: COLORS.accent,
+  },
+  modelPillText: {
+    fontSize: FONT.md,
+    fontFamily: FONT_FAMILY.mono,
+    color: COLORS.textPrimary,
+  },
+
   loadingContainer: {
-    paddingVertical: 32,
+    paddingVertical: SPACE.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACE.md,
+  },
+  loadingText: {
+    fontSize: FONT.sm,
+    fontFamily: FONT_FAMILY.mono,
+    color: COLORS.textSecondary,
+  },
+
+  errorBlock: {
+    backgroundColor: 'rgba(255, 44, 85, 0.06)',
+    borderColor: COLORS.danger,
+    padding: SPACE.md,
+  },
+  errorTitle: {
+    color: COLORS.danger,
+    fontWeight: '600',
+    fontSize: FONT.md,
+    fontFamily: FONT_FAMILY.mono,
+    marginBottom: SPACE.xs,
+  },
+  errorMessage: {
+    color: COLORS.textSecondary,
+    fontWeight: '400',
+    fontSize: FONT.sm,
+    fontFamily: FONT_FAMILY.mono,
+  },
+
+  emptyBlock: {
+    paddingVertical: SPACE.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  loadingText: {
-    color: '#00FF66',
-    fontWeight: '900',
-    fontSize: 12,
-    letterSpacing: 2,
-  },
-
-  /* Error State */
-  errorBlock: {
-    backgroundColor: 'rgba(255, 44, 85, 0.08)',
-    borderWidth: 2,
-    borderColor: '#FF2C55',
-    borderRadius: 6,
-    padding: 16,
-  },
-  errorTitle: {
-    color: '#FF2C55',
-    fontWeight: '900',
-    fontSize: 14,
-    letterSpacing: 1,
-    marginBottom: 8,
-  },
-  errorMessage: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 12,
-    marginBottom: 8,
-  },
-  errorDetail: {
-    color: '#999999',
-    fontWeight: '700',
-    fontSize: 11,
-    fontFamily: 'Courier',
-  },
-
-  /* Empty State */
-  emptyBlock: {
-    paddingVertical: 32,
-    alignItems: 'center',
-  },
   emptyText: {
-    color: '#666666',
-    fontWeight: '900',
-    fontSize: 12,
-    letterSpacing: 1,
+    color: COLORS.textMuted,
+    fontFamily: FONT_FAMILY.mono,
+    fontSize: FONT.sm,
   },
 
-  /* Models Grid */
   modelsGrid: {
-    gap: 12,
+    gap: SPACE.sm,
   },
   modelCard: {
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    borderRadius: 6,
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    marginBottom: 0,
   },
   modelCardActive: {
-    backgroundColor: '#00FF66',
-    borderColor: '#00FF66',
+    backgroundColor: COLORS.accentTint,
+    borderColor: 'rgba(0,255,102,0.18)',
+  },
+  modelCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   modelName: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-    fontSize: 13,
-    letterSpacing: 0.5,
-    fontFamily: 'Courier',
-    flex: 1,
+    fontSize: FONT.md,
+    fontFamily: FONT_FAMILY.mono,
+    color: COLORS.textPrimary,
+    fontWeight: '500',
   },
   modelNameActive: {
-    color: '#000000',
-  },
-  activeIndicator: {
-    color: '#000000',
-    fontWeight: '900',
-    fontSize: 10,
-    letterSpacing: 1,
-    marginLeft: 12,
+    color: COLORS.accent,
+    fontWeight: '600',
   },
 
-  /* Status Card */
-  statusCard: {
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
-    borderRadius: 6,
-    padding: 16,
+  // APPEARANCE SECTION
+  promptContainer: {
+    padding: 0,
+    marginBottom: SPACE.xxl,
   },
-  statusRow: {
-    marginBottom: 12,
-  },
-  statusLabel: {
-    color: '#666666',
-    fontWeight: '900',
-    fontSize: 10,
-    letterSpacing: 1,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  statusValue: {
-    color: '#00FF66',
-    fontWeight: '700',
-    fontSize: 12,
-    letterSpacing: 0.5,
-    fontFamily: 'Courier',
+  promptTextarea: {
+    fontSize: FONT.md,
+    fontFamily: FONT_FAMILY.mono,
+    color: COLORS.textSecondary,
+    padding: SPACE.lg,
+    minHeight: scale(100),
+    lineHeight: FONT.md * 1.6,
   },
 });

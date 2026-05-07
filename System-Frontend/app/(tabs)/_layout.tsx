@@ -1,141 +1,101 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, SafeAreaView, useWindowDimensions, Text } from 'react-native';
+import { 
+  View, 
+  StyleSheet, 
+  TouchableOpacity, 
+  SafeAreaView, 
+  useWindowDimensions, 
+  Platform 
+} from 'react-native';
 import { Link, Slot, usePathname } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Feather } from '@expo/vector-icons';
 import { BACKEND_URL } from '../../constants/config';
+import { COLORS, SPACE } from '../../constants/theme';
+import { scale } from '../../utils/responsive';
+
+const NAV_ITEMS = [
+  { name: 'chat',     icon: 'terminal' },
+  { name: 'lifeline', icon: 'clock'    },
+  { name: 'board',    icon: 'grid'     },
+  { name: 'calendar', icon: 'zap'      },
+  { name: 'journal',  icon: 'book-open'},
+  { name: 'memory',   icon: 'cpu'      },
+  { name: 'projects', icon: 'folder'   },
+  { name: 'topology', icon: 'share-2'  },
+  { name: 'profile',  icon: 'user'     },
+  { name: 'settings', icon: 'settings' },
+];
 
 export default function SideNavigationLayout() {
   const pathname = usePathname();
   const { width } = useWindowDimensions();
-  
-  // Responsive breakpoint: tablet is 768px
   const isMobile = width < 768;
+  const [isOnline, setIsOnline] = useState(false);
 
-  // State for system status
-  const [isOnline, setIsOnline] = useState<boolean>(false);
-  const [activeModel, setActiveModel] = useState<string>('NONE');
-
-  const navItems = [
-    { name: 'chat', icon: 'terminal-outline', label: 'SYSTEM' },
-    { name: 'board', icon: 'grid-outline', label: 'BOARD' },
-    { name: 'calendar', icon: 'flash-outline', label: 'AGENDA' },
-    { name: 'profile', icon: 'id-card-outline', label: 'USER' },
-    { name: 'settings', icon: 'hardware-chip-outline', label: 'CONFIG' },
-  ];
-
-  // Responsive dimensions
-  const sidebarWidth = isMobile ? 60 : 72;
-  const iconSize = isMobile ? 20 : 24;
-  const navGap = isMobile ? 20 : 30;
-  const activeIndicatorLeft = isMobile ? -5 : -11;
-
-  // Check system health and model status
-  const checkSystemStatus = async () => {
-    // 1. Check active model from AsyncStorage
-    try {
-      const saved = await AsyncStorage.getItem('@system_active_model');
-      setActiveModel(saved || 'NONE');
-    } catch (e) {
-      console.error('Failed to load active model', e);
-      setActiveModel('ERR');
-    }
-
-    // 2. Check backend health with timeout
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3-second timeout
-      
-      const response = await fetch(`${BACKEND_URL}/api/health`, {
-        signal: controller.signal,
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (response.ok) {
-        setIsOnline(true);
-      } else {
+  // Health check polling
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), 3000);
+        // Silently fails if backend is unreachable, updating the status dot
+        const res = await fetch(`${BACKEND_URL}/api/health`, { signal: controller.signal });
+        clearTimeout(id);
+        setIsOnline(res.ok);
+      } catch (e) {
         setIsOnline(false);
       }
-    } catch (e) {
-      console.error('Health check failed', e);
-      setIsOnline(false);
-    }
-  };
-
-  // Calculate dynamic font size based on model name length
-  const calculateFontSize = (name: string) => {
-    const length = name.length;
-    if (length <= 5) return 13;
-    if (length <= 8) return 11;
-    if (length <= 12) return 9.5;
-    return 8;
-  };
-
-  const calculateLetterSpacing = (name: string) => {
-    const length = name.length;
-    if (length <= 5) return 1;
-    if (length <= 8) return 0.5;
-    return 0.2;
-  };
-
-  // Set up periodic health checks
-  useEffect(() => {
-    checkSystemStatus(); // Initial check
-    const interval = setInterval(checkSystemStatus, 10000); // Check every 10 seconds
+    };
+    
+    checkStatus();
+    const interval = setInterval(checkStatus, 10000);
     return () => clearInterval(interval);
   }, []);
 
   return (
     <View style={styles.container}>
-      {/* 🛠️ THE SIDEBAR DOCK */}
-      <View style={[styles.sidebar, { width: sidebarWidth }]}>
-        <SafeAreaView style={styles.sidebarInner}>
-          {/* Navigation Stack */}
-          <View style={[styles.navStack, { gap: navGap }]}>
-            {navItems.map((item) => {
+      {/* VS Code Style Activity Bar */}
+      <View style={[styles.rail, isMobile && styles.mobileRail]}>
+        <SafeAreaView style={styles.inner}>
+          
+          <View style={styles.topSection}>
+            {NAV_ITEMS.map((item) => {
               const isActive = pathname.includes(item.name);
               return (
                 <Link key={item.name} href={`/(tabs)/${item.name}`} asChild>
-                  <TouchableOpacity style={styles.navItem}>
-                    <Ionicons 
+                  <TouchableOpacity
+                    /* The StyleSheet.flatten fix for Expo Router's <Slot> */
+                    style={StyleSheet.flatten([
+                      styles.railItem, 
+                      isActive && styles.railActive
+                    ])}
+                    hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+                  >
+                    <Feather 
                       name={item.icon as any} 
-                      size={iconSize}
-                      color={isActive ? '#00FF66' : '#444'} 
+                      size={scale(18)} 
+                      strokeWidth={1.5}
+                      color={isActive ? COLORS.textPrimary : COLORS.textGhost} 
                     />
-                    {isActive && <View style={[styles.activeIndicator, { left: activeIndicatorLeft }]} />}
                   </TouchableOpacity>
                 </Link>
               );
             })}
           </View>
 
-          {/* STATUS MODULE AT BOTTOM */}
-          <View style={styles.statusModule}>
-            {/* Status Dot */}
+          {/* Minimal Status Dot at the bottom */}
+          <View style={styles.statusContainer}>
             <View style={[
-              styles.statusDot,
-              { backgroundColor: isOnline ? '#00FF66' : '#FF2C55' }
+              styles.statusDot, 
+              { backgroundColor: isOnline ? COLORS.accent : COLORS.danger },
+              isOnline && styles.glow
             ]} />
-            
-            {/* Rotated Model Text */}
-            <View style={styles.rotatedTextContainer}>
-              <Text style={[
-                styles.modelText,
-                {
-                  color: isOnline ? '#00FF66' : '#FF2C55',
-                  fontSize: calculateFontSize(activeModel),
-                  letterSpacing: calculateLetterSpacing(activeModel),
-                }
-              ]}>
-                {activeModel}
-              </Text>
-            </View>
           </View>
+
         </SafeAreaView>
       </View>
 
-      {/* 📱 THE MAIN CONTENT AREA */}
+      {/* Main App Content */}
       <View style={styles.content}>
         <Slot />
       </View>
@@ -144,72 +104,63 @@ export default function SideNavigationLayout() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: '#000',
+  container: { 
+    flex: 1, 
+    flexDirection: 'row', 
+    backgroundColor: COLORS.bg 
   },
-  sidebar: {
-    backgroundColor: '#000',
-    borderRightWidth: 2,
-    borderRightColor: '#1a1a1a',
+  rail: { 
+    width: scale(48), // Strict VS Code Width
+    backgroundColor: COLORS.bg, 
+    borderRightWidth: 1, 
+    borderRightColor: COLORS.borderMid,
+    paddingTop: Platform.OS === 'web' ? SPACE.lg : 0,
   },
-  sidebarInner: {
-    flex: 1,
+  mobileRail: {
+    width: scale(54), // Slightly wider on mobile for comfortable thumb targets
+  },
+  inner: { 
+    flex: 1, 
+    justifyContent: 'space-between', 
     alignItems: 'center',
-    paddingVertical: 16,
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
   },
-  navStack: {
+  topSection: {
+    width: '100%',
     alignItems: 'center',
   },
-  navItem: {
-    position: 'relative',
-    padding: 12,
+  railItem: { 
+    width: '100%', 
+    height: scale(50), 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    borderLeftWidth: 2, 
+    borderLeftColor: 'transparent', // Invisible by default
+    marginBottom: SPACE.xs,
   },
-  activeIndicator: {
-    position: 'absolute',
-    top: '50%',
-    marginTop: -8,
-    width: 12,
-    height: 16,
-    backgroundColor: '#00FF66',
-    borderRightWidth: 2,
-    borderRightColor: '#00FF66',
+  railActive: { 
+    borderLeftColor: COLORS.accent, // The signature left-stripe
   },
-  content: {
-    flex: 1,
-    backgroundColor: '#000',
+  content: { 
+    flex: 1, 
+    backgroundColor: COLORS.bg 
   },
-  statusModule: {
-    alignItems: 'center',
-    gap: 16,
-    paddingBottom: 16,
-    paddingHorizontal: 8,
-    borderTopWidth: 2,
-    borderTopColor: '#1a1a1a',
-    paddingTop: 16,
-  },
-  statusDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 3,
-    borderColor: '#1a1a1a',
-    shadowColor: '#00FF66',
-    shadowOpacity: 0.8,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  rotatedTextContainer: {
-    height: 60,
+  statusContainer: {
+    width: '100%',
+    height: scale(48),
     justifyContent: 'center',
     alignItems: 'center',
-    transform: [{ rotate: '-90deg' }],
+    paddingBottom: SPACE.md,
   },
-  modelText: {
-    fontFamily: 'Courier New',
-    fontWeight: '800',
+  statusDot: { 
+    width: 6, 
+    height: 6, 
+    borderRadius: 3, 
   },
+  glow: {
+    shadowColor: COLORS.accent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
+    elevation: 4,
+  }
 });

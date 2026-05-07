@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Modal, useWindowDimensions, RefreshControl } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Modal, useWindowDimensions, RefreshControl, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
-import { COLORS, BOLD_STYLES } from '../../constants/theme';
+import { COLORS, BOLD_STYLES, FONT, FONT_FAMILY, RADIUS, SPACE } from '../../constants/theme';
 import { BACKEND_URL } from '../../constants/config';
+import { DateTimePicker } from '../../components/DateTimePicker';
+import { Calendar } from 'react-native-calendars';
+
 const STATUS_FLOW = ['TODO', 'IN_PROGRESS', 'DONE'];
 
 type Ticket = { id: string; title: string; dueDate: string; priority: string; status: string };
@@ -15,22 +18,23 @@ export default function CalendarScreen() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  
-  // Responsive logic
+  const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDueDate, setEditDueDate] = useState('');
+  const [editPriority, setEditPriority] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+
   const isMobile = screenWidth < 768;
-  
-  // AbortController for canceling ticket requests
+
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchTickets = async () => {
-    // Cancel previous request if still pending
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    
-    // Create new abort controller for this request
     abortControllerRef.current = new AbortController();
-    
     setLoading(true);
     try {
       const response = await fetch(`${BACKEND_URL}/api/tickets?user_id=${user?.id}`, {
@@ -39,8 +43,8 @@ export default function CalendarScreen() {
       const data = await response.json();
       if (data.success) {
         const validTickets = data.tickets
-            .filter((t: Ticket) => t.dueDate)
-            .sort((a: Ticket, b: Ticket) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+          .filter((t: Ticket) => t.dueDate)
+          .sort((a: Ticket, b: Ticket) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
         setTickets(validTickets);
       } else {
         Alert.alert('Error', data.error || 'Failed to load agenda');
@@ -48,7 +52,7 @@ export default function CalendarScreen() {
     } catch (error: any) {
       if (error.name !== 'AbortError') {
         console.error("Failed to fetch tickets", error);
-        Alert.alert('Network Error', 'Could not reach the server. Please check your connection.');
+        Alert.alert('SYSTEM_ERR', 'Backend connection severed.');
       }
     } finally {
       setLoading(false);
@@ -65,7 +69,6 @@ export default function CalendarScreen() {
     useCallback(() => {
       fetchTickets();
       return () => {
-        // Cancel request when screen loses focus
         if (abortControllerRef.current) {
           abortControllerRef.current.abort();
         }
@@ -78,10 +81,7 @@ export default function CalendarScreen() {
       const res = await fetch(`${BACKEND_URL}/api/tickets/${ticketId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          status: newStatus,
-          user_id: user?.id 
-        }),
+        body: JSON.stringify({ status: newStatus, user_id: user?.id }),
       });
       const data = await res.json();
       if (data.success) {
@@ -103,7 +103,46 @@ export default function CalendarScreen() {
     return null;
   };
 
-  // Group tickets by date
+  const openEditModal = (ticket: Ticket) => {
+    setEditingTicket(ticket);
+    setEditTitle(ticket.title);
+    setEditDueDate(ticket.dueDate);
+    setEditPriority(ticket.priority);
+  };
+
+  const closeEditModal = () => {
+    setEditingTicket(null);
+    setEditTitle('');
+    setEditDueDate('');
+    setEditPriority('');
+  };
+
+  const saveEditedTicket = async () => {
+    if (!editingTicket) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/tickets/${editingTicket.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editTitle,
+          priority: editPriority.toUpperCase(),
+          dueDate: editDueDate,
+          user_id: user?.id
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        closeEditModal();
+        fetchTickets();
+      } else {
+        Alert.alert('Error', data.error || 'Failed to save ticket');
+      }
+    } catch (e: any) {
+      console.error("Failed to save ticket", e);
+      Alert.alert('Network Error', 'Could not save ticket. Please try again.');
+    }
+  };
+
   const groupedTickets = tickets.reduce((acc: any, ticket) => {
     const date = ticket.dueDate;
     if (!acc[date]) acc[date] = [];
@@ -111,126 +150,209 @@ export default function CalendarScreen() {
     return acc;
   }, {});
 
+  const displayedTasks = tickets.filter(t => t.dueDate && t.dueDate.startsWith(selectedDate));
+
+  const getPriorityColor = (priority: string) => {
+    if (priority === 'high') return COLORS.danger;
+    if (priority === 'medium') return COLORS.warning;
+    return COLORS.accent;
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={[styles.header, { paddingHorizontal: isMobile ? '5%' : '3%' }]}>
-        <View>
-          <Text style={styles.headerTitle}>SYSTEM /</Text>
-          <Text style={styles.headerHighlight}>AGENDA</Text>
-        </View>
-        <TouchableOpacity onPress={fetchTickets} style={styles.refreshBtn}>
-            <Ionicons name="scan" size={20} color={COLORS.primary} />
-        </TouchableOpacity>
-      </View>
+      <View style={{ flex: 1, backgroundColor: COLORS.bg, alignItems: 'center' }}>
+        <View style={{ width: '100%', maxWidth: 768, flex: 1 }}>
 
-      {loading ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Text style={{ color: '#00FF66', fontWeight: '900', letterSpacing: 2, fontSize: 14 }}>[ SYSTEM_LOADING... ]</Text>
-        </View>
-      ) : (
-        <ScrollView style={styles.agendaScroll} contentContainerStyle={{ paddingBottom: 40 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#00FF66" />}>
-          {Object.keys(groupedTickets).length === 0 ? (
-              <View style={styles.emptyState}>
-                  <Text style={styles.emptyText}>NO UPCOMING EVENTS.</Text>
-                  <Text style={styles.emptyTextSub}>SYSTEM CLEAR.</Text>
-              </View>
+          <View style={[styles.header, { paddingHorizontal: isMobile ? SPACE.lg : SPACE.md }]}>
+            <View>
+              <Text style={styles.headerTitle}>calendar</Text>
+              <Text style={styles.headerSubtitle}>~/agenda</Text>
+            </View>
+            <TouchableOpacity onPress={fetchTickets} style={styles.refreshBtn}>
+              <Feather name="refresh-cw" size={FONT.md} color={COLORS.textMuted} />
+            </TouchableOpacity>
+          </View>
+
+          {loading ? (
+            <View style={styles.centered}>
+              <Text style={styles.loadingText}>loading...</Text>
+            </View>
           ) : (
-              Object.keys(groupedTickets).map((date) => (
-                <View key={date} style={styles.dateGroup}>
-                  {/* Heavy Date Divider */}
-                  <View style={styles.dateHeader}>
-                    <Text style={styles.dateHeaderText}>{date.toUpperCase()}</Text>
-                    <View style={styles.dateLine} />
-                  </View>
+            <ScrollView
+              style={{ flex: 1, paddingHorizontal: isMobile ? SPACE.lg : SPACE.md, paddingTop: SPACE.lg }}
+              contentContainerStyle={{ paddingBottom: SPACE.xl * 2 }}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.accent} />}
+            >
+              <View style={styles.calendarContainer}>
+                <Calendar
+                  onDayPress={(day) => setSelectedDate(day.dateString)}
+                  enableSwipeMonths={true}
+                  hideExtraDays={false}
+                  markedDates={{
+                    [selectedDate]: { selected: true, marked: true, selectedColor: COLORS.accent }
+                  }}
+                  theme={{
+                    calendarBackground: COLORS.bg,
+                    textSectionTitleColor: COLORS.textGhost,
+                    dayTextColor: COLORS.textMuted,
+                    todayTextColor: COLORS.textPrimary,
+                    monthTextColor: COLORS.textSecondary,
+                    arrowColor: COLORS.accent,
+                    textDayHeaderFontWeight: '500',
+                    textMonthFontWeight: '500',
+                    selectedDayBackgroundColor: COLORS.accent,
+                    selectedDayTextColor: '#000',
+                    dotColor: COLORS.accent,
+                    selectedDotColor: '#000',
+                  }}
+                />
+              </View>
 
-                  {/* Tickets for this date */}
-                  {groupedTickets[date].map((ticket: Ticket) => {
-                    const nextStatus = getNextStatus(ticket.status);
-                    return (
-                      <View key={ticket.id} style={styles.agendaItem}>
-                        <View style={styles.timeLineCol}>
-                          <View style={[styles.node, { backgroundColor: ticket.status === 'DONE' ? COLORS.borderColor : COLORS.primary }]} />
-                          <View style={styles.line} />
-                        </View>
-                        
-                        <View style={[styles.ticketCard, ticket.status === 'DONE' && styles.ticketDone]}>
-                          <Text style={[styles.taskTitle, ticket.status === 'DONE' && styles.textDone]}>
-                            {ticket.title.toUpperCase()}
-                          </Text>
-                          <Text style={styles.badgeText}>PRIORITY: {ticket.priority.toUpperCase()}</Text>
-                          
-                          {/* Status Movement Row */}
-                          <View style={styles.actionRow}>
-                            {nextStatus && (
-                              <TouchableOpacity 
-                                style={styles.moveBtn}
-                                onPress={() => updateTicketStatus(ticket.id, nextStatus)}
-                              >
-                                <Ionicons name="arrow-forward" size={14} color="#00FF66" />
-                                <Text style={styles.moveBtnText}>{nextStatus === 'TODO' ? 'NOT STARTED' : nextStatus === 'IN_PROGRESS' ? 'PROGRESSING' : 'DONE'}</Text>
-                              </TouchableOpacity>
-                            )}
-                            
-                            {ticket.status !== 'TODO' && (
-                              <TouchableOpacity 
-                                style={styles.moveBtnSecondary}
-                                onPress={() => updateTicketStatus(ticket.id, 'TODO')}
-                              >
-                                <Ionicons name="arrow-back" size={14} color="#A0A0A0" />
-                              </TouchableOpacity>
-                            )}
+              <View style={styles.dateIndicator}>
+                <Text style={styles.dateIndicatorText}>{selectedDate}</Text>
+              </View>
+
+              <View style={styles.taskListSection}>
+                {displayedTasks.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyText}>$ no tasks today</Text>
+                  </View>
+                ) : (
+                  <View>
+                    <Text style={styles.taskCountText}>{displayedTasks.length} task{displayedTasks.length !== 1 ? 's' : ''}</Text>
+                    {displayedTasks.map((ticket: Ticket) => {
+                      const nextStatus = getNextStatus(ticket.status);
+                      return (
+                        <View key={ticket.id} style={styles.agendaItem}>
+                          <View style={styles.timeLineCol}>
+                            <View style={[styles.node, { backgroundColor: ticket.status === 'DONE' ? COLORS.borderMid : COLORS.accent }]} />
+                            <View style={styles.line} />
+                          </View>
+
+                          <View style={[styles.ticketCard, ticket.status === 'DONE' && styles.ticketDone]}>
+                            <Text style={[styles.taskTitle, ticket.status === 'DONE' && styles.textDone]}>
+                              {ticket.title}
+                            </Text>
+                            <View style={styles.taskMetaRow}>
+                              <View style={[styles.priorityDot, { backgroundColor: getPriorityColor(ticket.priority) }]} />
+                              <Text style={styles.taskMeta}>
+                                {ticket.dueDate} · {ticket.priority.toLowerCase()}
+                              </Text>
+                            </View>
+
+                            <View style={styles.actionRow}>
+                              {nextStatus && (
+                                <TouchableOpacity
+                                  style={styles.moveBtn}
+                                  onPress={() => updateTicketStatus(ticket.id, nextStatus)}
+                                >
+                                  <Feather name="arrow-right" size={FONT.xs} color={COLORS.accent} />
+                                  <Text style={styles.moveBtnText}>
+                                    {nextStatus === 'TODO' ? 'not started' : nextStatus === 'IN_PROGRESS' ? 'start' : 'done'}
+                                  </Text>
+                                </TouchableOpacity>
+                              )}
+                              {ticket.status !== 'TODO' && (
+                                <TouchableOpacity
+                                  style={styles.moveBtnSecondary}
+                                  onPress={() => updateTicketStatus(ticket.id, 'TODO')}
+                                >
+                                  <Feather name="arrow-left" size={FONT.xs} color={COLORS.textMuted} />
+                                </TouchableOpacity>
+                              )}
+                            </View>
                           </View>
                         </View>
-                      </View>
-                    );
-                  })}
-                </View>
-              ))
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            </ScrollView>
           )}
-        </ScrollView>
-      )}
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: { 
-    paddingVertical: 16, 
-    borderBottomWidth: 1, 
-    borderColor: COLORS.borderColor, 
-    flexDirection: 'row', 
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  header: {
+    paddingVertical: SPACE.md,
+    borderBottomWidth: 1,
+    borderColor: COLORS.border,
+    flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    alignItems: 'center',
+    backgroundColor: COLORS.bg,
   },
-  headerTitle: { fontSize: 14, fontWeight: '900', color: COLORS.white, letterSpacing: 2 },
-  headerHighlight: { fontSize: 24, fontWeight: '900', color: COLORS.primary, letterSpacing: -1, textShadowColor: 'rgba(0, 255, 102, 0.5)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8, marginBottom: 8 },
-  refreshBtn: { padding: 8, borderWidth: 2, borderColor: COLORS.borderColor, borderRadius: BOLD_STYLES.radius.md },
-  
-  agendaScroll: { flex: 1, paddingHorizontal: '5%', paddingTop: 24 },
-  
-  dateGroup: { marginBottom: 16 },
-  dateHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  dateHeaderText: { color: COLORS.primary, fontSize: 18, fontWeight: '900', letterSpacing: 2, marginRight: 16 },
-  dateLine: { flex: 1, height: 2, backgroundColor: COLORS.borderColor },
-  
-  agendaItem: { flexDirection: 'row', marginBottom: 8 },
-  timeLineCol: { width: 30, alignItems: 'center' },
-  node: { width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: COLORS.background, zIndex: 10, marginTop: 24 },
-  line: { position: 'absolute', top: 36, bottom: -20, width: 2, backgroundColor: COLORS.borderColor },
-  
-  ticketCard: { flex: 1, backgroundColor: COLORS.cardDark, padding: 20, borderRadius: BOLD_STYLES.radius.lg, borderWidth: BOLD_STYLES.border, borderColor: COLORS.borderColor, marginBottom: 12, shadowColor: '#00FF66', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.1, shadowRadius: 8 },
-  ticketDone: { opacity: 0.5, borderColor: COLORS.borderColor },
-  taskTitle: { fontSize: 16, fontWeight: '900', color: COLORS.white, marginBottom: 8, letterSpacing: -0.5 },
-  textDone: { textDecorationLine: 'line-through', color: COLORS.lightText },
-  badgeText: { fontSize: 11, color: COLORS.lightText, fontWeight: '900', letterSpacing: 1 },
-  actionRow: { flexDirection: 'row', gap: 8, marginTop: 12, alignItems: 'center' },
-  moveBtn: { flex: 1, backgroundColor: '#000', borderWidth: 2, borderColor: '#00FF66', borderRadius: 8, paddingVertical: 8, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4 },
-  moveBtnText: { color: '#00FF66', fontWeight: '900', fontSize: 9, letterSpacing: 0.5 },
-  moveBtnSecondary: { width: 32, height: 32, borderWidth: 2, borderColor: '#333', borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { fontSize: FONT.xxl, fontWeight: '500', color: COLORS.textPrimary, fontFamily: FONT_FAMILY.sans },
+  headerSubtitle: { fontSize: FONT.md, color: COLORS.textMuted, fontFamily: FONT_FAMILY.mono, marginTop: 2 },
+  refreshBtn: { width: 26, height: 26, justifyContent: 'center', alignItems: 'center', borderRadius: RADIUS.sm },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { color: COLORS.textMuted, fontSize: FONT.sm, fontFamily: FONT_FAMILY.mono },
 
-  emptyState: { alignItems: 'center', marginTop: 80 },
-  emptyText: { color: COLORS.white, fontSize: 24, fontWeight: '900', letterSpacing: 1 },
-  emptyTextSub: { color: COLORS.primary, fontSize: 16, fontWeight: '900', letterSpacing: 2, marginTop: 8 }
+  calendarContainer: {
+    backgroundColor: COLORS.bg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.lg,
+    padding: SPACE.sm,
+    marginBottom: SPACE.md,
+  },
+  dateIndicator: {
+    paddingVertical: SPACE.sm,
+    paddingHorizontal: SPACE.md,
+    marginBottom: SPACE.lg,
+  },
+  dateIndicatorText: {
+    color: COLORS.textMuted,
+    fontSize: FONT.sm,
+    fontFamily: FONT_FAMILY.mono,
+  },
+  taskListSection: { marginBottom: SPACE.xl },
+  taskCountText: {
+    color: COLORS.textMuted, fontSize: FONT.sm,
+    fontFamily: FONT_FAMILY.mono, marginBottom: SPACE.sm,
+  },
+
+  agendaItem: { flexDirection: 'row', marginBottom: SPACE.sm },
+  timeLineCol: { width: SPACE.xl + SPACE.sm, alignItems: 'center' },
+  node: {
+    width: SPACE.sm + 2, height: SPACE.sm + 2,
+    borderRadius: RADIUS.sm, borderWidth: 1,
+    borderColor: COLORS.bg, zIndex: 10,
+    marginTop: SPACE.lg,
+  },
+  line: {
+    position: 'absolute', top: SPACE.xl + SPACE.xs, bottom: -SPACE.lg,
+    width: 1, backgroundColor: COLORS.border,
+  },
+  ticketCard: {
+    flex: 1, backgroundColor: COLORS.surface,
+    padding: SPACE.md, borderRadius: RADIUS.md,
+    borderWidth: 1, borderColor: COLORS.borderMid, marginBottom: SPACE.sm,
+  },
+  ticketDone: { opacity: 0.5 },
+  taskTitle: { fontSize: FONT.md, fontWeight: '500', color: COLORS.textPrimary, marginBottom: SPACE.xs, fontFamily: FONT_FAMILY.sans },
+  taskMetaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.xs, marginBottom: SPACE.sm },
+  priorityDot: { width: 5, height: 5, borderRadius: 3 },
+  taskMeta: { fontSize: FONT.xs, color: COLORS.textMuted, fontFamily: FONT_FAMILY.mono },
+  textDone: { textDecorationLine: 'line-through', color: COLORS.textMuted },
+  actionRow: { flexDirection: 'row', gap: SPACE.sm, marginTop: SPACE.sm, alignItems: 'center' },
+  moveBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACE.xs,
+    backgroundColor: 'transparent', borderWidth: 1, borderColor: COLORS.borderMid,
+    borderRadius: RADIUS.sm, paddingVertical: SPACE.xs,
+    justifyContent: 'center',
+  },
+  moveBtnText: { color: COLORS.textMuted, fontSize: FONT.xs, fontFamily: FONT_FAMILY.mono },
+  moveBtnSecondary: {
+    width: SPACE.xl + SPACE.xs, height: SPACE.xl + SPACE.xs,
+    borderWidth: 1, borderColor: COLORS.borderMid,
+    borderRadius: RADIUS.sm, justifyContent: 'center', alignItems: 'center',
+  },
+  emptyState: { alignItems: 'center', marginTop: SPACE.xl },
+  emptyText: { color: COLORS.textMuted, fontSize: FONT.base, fontFamily: FONT_FAMILY.mono },
 });
